@@ -89,6 +89,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Block login if GDPR not accepted
+    document.getElementById('nav-login').addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!localStorage.getItem('gdpr_accepted')) {
+            showToast('Спочатку прийміть умови Політики конфіденційності!');
+            highlightGDPR();
+            return;
+        }
+        localStorage.setItem('saved_tab', activeTab);
+        localStorage.setItem('saved_title', activeTab === 'tab-text' ? titleInput.value : urlTitleInput.value);
+        localStorage.setItem('saved_text', activeTab === 'tab-text' ? textInput.value : urlTextInput.value);
+        window.location.href = '/auth/google';
+    });
+
+    function highlightGDPR() {
+        const banner = document.getElementById('gdpr-banner');
+        banner.style.transition = 'all 0.3s';
+        banner.style.boxShadow = '0 0 20px rgba(0, 121, 107, 0.6)';
+        banner.style.borderColor = 'var(--primary)';
+        setTimeout(() => {
+            banner.style.boxShadow = 'var(--shadow-soft)';
+            banner.style.borderColor = 'var(--border-color)';
+        }, 1500);
+    }
+
     function checkLegals() {
         if (!localStorage.getItem('legals_accepted')) {
             localStorage.setItem('legals_accepted', 'true');
@@ -212,6 +237,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Generate Pipeline
     btnGenerate.addEventListener('click', async () => {
         if (!currentUser) {
+            if (!localStorage.getItem('gdpr_accepted')) {
+                showToast('Спочатку прийміть умови Політики конфіденційності!');
+                highlightGDPR();
+                return;
+            }
             showToast('Спочатку увійдіть через Google!');
             localStorage.setItem('saved_tab', activeTab);
             localStorage.setItem('saved_title', activeTab === 'tab-text' ? titleInput.value : urlTitleInput.value);
