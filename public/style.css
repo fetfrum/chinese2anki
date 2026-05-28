@@ -278,6 +278,15 @@ input[type="text"]:focus, textarea:focus, select:focus {
     color: var(--text-main);
 }
 
+/* Form Transitions */
+#url-fetched-area {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+#url-fetched-area.show {
+    opacity: 1;
+}
+
 /* Action Footer */
 .action-footer {
     margin-top: auto;

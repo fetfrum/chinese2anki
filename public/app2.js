@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             toast.classList.remove('show');
             setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        }, 5000);
     }
 
     // Auth Status
@@ -124,7 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Dynamic URL Fetching
     urlInput.addEventListener('input', () => {
         const url = urlInput.value.trim();
-        urlFetchedArea.style.display = 'none';
+        urlFetchedArea.classList.remove('show');
+        setTimeout(() => { urlFetchedArea.style.display = 'none'; }, 300);
         urlTitleInput.value = '';
         urlTextInput.value = '';
         validateAndEstimate();
@@ -146,14 +147,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!res.ok) throw new Error('Failed to fetch');
                 const data = await res.json();
                 
-                urlTitleInput.value = data.title || '';
-                urlTextInput.value = data.text || '';
+                urlTitleInput.value = 'Нова колода (з URL)';
+                urlTextInput.value = data.content || '';
                 urlFetchedArea.style.display = 'flex';
+                void urlFetchedArea.offsetWidth;
+                urlFetchedArea.classList.add('show');
+                
                 showToast('Текст успішно завантажено!');
             } catch (e) {
                 showToast('Помилка завантаження URL');
             } finally {
                 isFetchingUrl = false;
+                setButtonLoading(false, "Згенерувати колоду");
                 validateAndEstimate();
             }
         }, 1000);
@@ -239,6 +244,8 @@ document.addEventListener('DOMContentLoaded', () => {
             urlTitleInput.value = localStorage.getItem('saved_title') || '';
             urlTextInput.value = localStorage.getItem('saved_text') || '';
             urlFetchedArea.style.display = 'flex';
+            void urlFetchedArea.offsetWidth;
+            urlFetchedArea.classList.add('show');
         }
         localStorage.removeItem('saved_tab');
         localStorage.removeItem('saved_title');
