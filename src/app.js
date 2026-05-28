@@ -117,8 +117,8 @@ app.post('/api/scrape', async (req, res) => {
         const { url } = req.body;
         if (!url) return res.status(400).json({ error: 'URL required' });
         const scraper = new NewsScraper(url);
-        const content = await scraper.extractText(url);
-        res.json({ content });
+        const { title, content } = await scraper.extractText(url);
+        res.json({ title, content });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

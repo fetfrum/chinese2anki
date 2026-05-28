@@ -147,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!res.ok) throw new Error('Failed to fetch');
                 const data = await res.json();
                 
-                urlTitleInput.value = 'Нова колода (з URL)';
+                urlTitleInput.value = data.title || 'Нова колода (з URL)';
                 urlTextInput.value = data.content || '';
                 urlFetchedArea.style.display = 'flex';
                 void urlFetchedArea.offsetWidth;

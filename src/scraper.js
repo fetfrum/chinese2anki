@@ -74,12 +74,14 @@ class NewsScraper {
             content = content.substring(0, 20000);
         }
         
-        return content;
+        const title = article ? article.title : '';
+        return { title, content };
     }
 
     async run() {
         try {
-            const content = await this.extractText(this.url);
+            const extracted = await this.extractText(this.url);
+            const content = extracted.content;
             const prompt = fs.readFileSync(path.join(__dirname, 'prompts', 'news_scraper.md'), 'utf8');
             const fullPrompt = `${prompt}\n\n=== RAW WEBPAGE TEXT ===\n${content}`;
             
