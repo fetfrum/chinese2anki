@@ -81,13 +81,6 @@ function processSentence(tokenObjs, uniqueWordsMap, chunksOut, sentencesOut, hsk
     
     if (mode === 'words') return; // Skip chunks/sentences if only words
     
-    // Check sentence difficulty
-    const highestLevel = Math.max(...realWords.map(rw => getHSKLevel(rw.w)));
-    if (highestLevel > hskTo + 1 && hskTo < 79) {
-        // Skip sentences that are way above the allowed level, unless "Any" (79) is selected
-        return;
-    }
-    
     // Split into chunks if > 6 words
     if (realWords.length > 6) {
         // Split by clause punctuation first

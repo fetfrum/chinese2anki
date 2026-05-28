@@ -218,6 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const text = activeTab === 'tab-text' ? textInput.value : urlTextInput.value;
+        const hskFrom = document.getElementById('hsk-from').value;
         const hskTo = document.getElementById('hsk-to').value;
         const mode = document.querySelector('input[name="extract-mode"]:checked').value;
 
@@ -232,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const estRes = await fetch('/api/estimate', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({text, url: '', hskTo, mode})
+                    body: JSON.stringify({text, url: '', hskFrom, hskTo, mode})
                 });
                 if (!estRes.ok) throw new Error('Estimate failed');
                 const estData = await estRes.json();
