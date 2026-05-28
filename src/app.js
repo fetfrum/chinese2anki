@@ -121,14 +121,14 @@ app.post('/api/scrape', async (req, res) => {
         
         if (title) {
             try {
-                const AIAgent = require('./ai_agent');
-                const agent = new AIAgent({ name: 'Translator' });
-                await agent.init();
-                const aiPromise = agent.callAI(`Translate the following title into Ukrainian. Respond ONLY with the translated text, no quotes or additional text:\n${title}`);
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000));
-                title = await Promise.race([aiPromise, timeoutPromise]);
+                const gtxUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=uk&dt=t&q=${encodeURIComponent(title)}`;
+                const gtxRes = await fetch(gtxUrl);
+                const gtxData = await gtxRes.json();
+                if (gtxData && gtxData[0] && gtxData[0][0] && gtxData[0][0][0]) {
+                    title = gtxData[0].map(item => item[0]).join('');
+                }
             } catch (e) {
-                console.error('Translation failed:', e);
+                console.error('GTX Translation failed:', e);
             }
         }
         
