@@ -117,7 +117,19 @@ app.post('/api/scrape', async (req, res) => {
         const { url } = req.body;
         if (!url) return res.status(400).json({ error: 'URL required' });
         const scraper = new NewsScraper(url);
-        const { title, content } = await scraper.extractText(url);
+        let { title, content } = await scraper.extractText(url);
+        
+        if (title) {
+            try {
+                const AIAgent = require('./ai_agent');
+                const agent = new AIAgent({ name: 'Translator' });
+                await agent.init();
+                title = await agent.callAI(`Translate the following title into Ukrainian. Respond ONLY with the translated text, no quotes or additional text:\n${title}`);
+            } catch (e) {
+                console.error('Translation failed:', e);
+            }
+        }
+        
         res.json({ title, content });
     } catch (error) {
         res.status(500).json({ error: error.message });
