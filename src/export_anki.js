@@ -197,16 +197,16 @@ function escapeHtml(value) {
 
 function buildMetaHtml(hskRaw) {
     if (!hskRaw || String(hskRaw).trim() === '' || String(hskRaw) === '0') return '';
-    return \`<span class="hsk-badge">HSK\${escapeHtml(String(hskRaw).trim())}</span>\`;
+    return `<span class="hsk-badge">HSK${escapeHtml(String(hskRaw).trim())}</span>`;
 }
 
 function buildAudioButtonsHtml(pinyins, filenames) {
     if (!filenames || filenames.length === 0) return '';
     let html = '';
     for (let i = 0; i < filenames.length; i++) {
-        const label = pinyins[i] || \`Audio \${i + 1}\`;
+        const label = pinyins[i] || `Audio ${i + 1}`;
         // Generates identical structure to Duo project
-        html += \`<button type="button" class="audio-btn" onclick="var links = document.querySelectorAll('.audio-raw span[data-src], .audio-raw a'); if(links[\${i}]) links[\${i}].click();">▶ \${escapeHtml(label)}</button> \`;
+        html += `<button type="button" class="audio-btn" onclick="var links = document.querySelectorAll('.audio-raw span[data-src], .audio-raw a'); if(links[${i}]) links[${i}].click();">▶ ${escapeHtml(label)}</button> `;
     }
     return html;
 }
@@ -234,12 +234,12 @@ async function createDeck(jsonPath, audioDir, outPath) {
         const audioFilenames = [];
         
         for (const p of pinyins) {
-            const fileName = \`\${Buffer.from(card.hanzi + '_' + p).toString('base64').replace(/[^a-zA-Z0-9]/g, '')}.mp3\`;
+            const fileName = `${Buffer.from(card.hanzi + '_' + p).toString('base64').replace(/[^a-zA-Z0-9]/g, '')}.mp3`;
             const filePath = path.join(audioDir, dir, fileName);
             if (fs.existsSync(filePath)) {
                 const buf = fs.readFileSync(filePath);
                 apkg.addMedia(fileName, buf);
-                audioFiles.push(\`[sound:\${fileName}]\`);
+                audioFiles.push(`[sound:${fileName}]`);
                 audioFilenames.push(fileName);
             }
         }
@@ -251,7 +251,7 @@ async function createDeck(jsonPath, audioDir, outPath) {
             Audio: audioFiles.join(''),
             AudioButtons: buildAudioButtonsHtml(pinyins, audioFilenames),
             Meta: buildMetaHtml(hskStr)
-        }, { tags: [hskStr ? \`HSK\${hskStr}\` : ''] });
+        }, { tags: [hskStr ? `HSK${hskStr}` : ''] });
     }
 
     const zip = await apkg.save();
