@@ -324,10 +324,38 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
                 writeLog('ACTION', `Отримано відповідь від AI. Обробка...`, req.user.id, sessionId);
                 let resultJson;
                 try {
-                    resultJson = safeJSONParse(resultStr);
+                    const lines = resultStr.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('```'));
+                    let deckTitle = 'Згенерована колода';
+                    if (lines.length > 0 && !lines[0].includes('|')) {
+                        deckTitle = lines.shift(); // First line is title
+                    }
+                    
+                    const cards = [];
+                    for (const line of lines) {
+                        if (!line.includes('|')) continue;
+                        const parts = line.split('|').map(p => p.trim());
+                        if (parts.length >= 8) { // 9 fields expected, minimum 8
+                            cards.push({
+                                type: parts[0] || 'word',
+                                hanzi: parts[1] || '',
+                                pinyin: parts[2] || '',
+                                ukrainian: parts[3] || '',
+                                hsk: parseInt(parts[4]) || 0,
+                                pos: parts[5] || '',
+                                example_hanzi: parts[6] || '',
+                                example_pinyin: parts[7] || '',
+                                example_ukr: parts[8] || ''
+                            });
+                        }
+                    }
+                    resultJson = { deck_title: deckTitle, cards };
+                    
+                    if (cards.length === 0) {
+                        throw new Error('Жодної картки не знайдено у відповіді AI.');
+                    }
                 } catch (parseErr) {
                     fs.writeFileSync(path.join(sessionPath, 'failed_output.txt'), resultStr);
-                    throw new Error(`Помилка парсингу JSON від AI. Деталі: ${parseErr.message}`);
+                    throw new Error(`Помилка парсингу тексту від AI. Деталі: ${parseErr.message}`);
                 }
                 
                 fs.writeFileSync(path.join(sessionPath, 'vocab_news.json'), JSON.stringify(resultJson, null, 2));

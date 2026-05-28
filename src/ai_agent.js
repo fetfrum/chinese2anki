@@ -70,10 +70,9 @@ class AIAgent {
                     body: JSON.stringify({
                         model: 'deepseek-chat',
                         messages: [
-                            { role: 'system', content: 'You are a helpful language assistant. Always output valid JSON.' },
+                            { role: 'system', content: 'You are a helpful language assistant.' },
                             { role: 'user', content: prompt }
                         ],
-                        response_format: { type: 'json_object' },
                         max_tokens: 8192
                     })
                 });
@@ -99,7 +98,7 @@ class AIAgent {
                 console.log(`[AI] Attempting Gemini: ${modelName}...`);
                 const model = this.genAI.getGenerativeModel({ model: modelName });
                 const result = await Promise.race([
-                    model.generateContent(prompt + "\n\nIMPORTANT: OUTPUT VALID JSON ONLY!"),
+                    model.generateContent(prompt),
                     new Promise((_, r) => setTimeout(() => r(new Error('TIMEOUT')), 30000))
                 ]);
                 let content = result.response.text();
@@ -124,7 +123,7 @@ class AIAgent {
                 body: JSON.stringify({
                     "model": this.autoModelOR,
                     "messages": [
-                        { role: 'system', content: 'You must output valid JSON only.' },
+                        { role: 'system', content: 'You are a helpful language assistant.' },
                         { "role": "user", "content": prompt }
                     ],
                     "max_tokens": 8192
