@@ -181,7 +181,7 @@ function formatMeaningHtml(meaning) {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
     // Styling inline pinyin
-    sanitized = sanitized.replace(/\(<i>([^<]+)<\\/i>\\)/g, '(<i class="inline-pinyin">$1</i>)');
+    sanitized = sanitized.replace(/\(<i>([^<]+)<\/i>\)/g, '(<i class="inline-pinyin">$1</i>)');
     return sanitized;
 }
 
