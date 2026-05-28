@@ -157,10 +157,10 @@ module.exports = function createTemplate({
       0,
       0,
       0,
-      '${JSON.stringify(conf)}',
-      '${JSON.stringify(models)}',
-      '${JSON.stringify(decks)}',
-      '${JSON.stringify(dconf)}',
+      '${JSON.stringify(conf).replace(/'/g, "''")}',
+      '${JSON.stringify(models).replace(/'/g, "''")}',
+      '${JSON.stringify(decks).replace(/'/g, "''")}',
+      '${JSON.stringify(dconf).replace(/'/g, "''")}',
       '{}'
     );
     CREATE TABLE notes (
