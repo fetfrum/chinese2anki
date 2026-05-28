@@ -14,9 +14,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy to Staging via Rsync
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H 95.216.15.173 >> ~/.ssh/known_hosts
 
@@ -44,9 +46,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy to Production via Rsync
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H 95.216.15.173 >> ~/.ssh/known_hosts
 
