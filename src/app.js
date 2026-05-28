@@ -152,6 +152,10 @@ app.post('/api/admin/users/:id/role', checkAdmin, (req, res) => {
     const { is_admin } = req.body; 
     const userId = req.params.id;
     
+    if (userId === '1' && !is_admin) {
+        return res.status(403).json({ error: 'Не можна забрати права у головного адміністратора' });
+    }
+    
     db.run('UPDATE users SET is_admin = ? WHERE id = ?', [is_admin ? 1 : 0, userId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true });

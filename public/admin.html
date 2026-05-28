@@ -122,7 +122,7 @@
                                     : `<button class="btn-small btn-ban" onclick="setBan(${u.id}, '2099-12-31')">Забанити (до 2099)</button>`
                                 }
                                 ${u.is_admin === 1
-                                    ? `<button class="btn-small btn-role" onclick="setRole(${u.id}, false)">Забрати права адміна</button>`
+                                    ? (u.id === 1 ? '<span style="color:var(--text-muted);font-size:0.85rem;margin-left:5px;">Головний адмін</span>' : `<button class="btn-small btn-role" onclick="setRole(${u.id}, false)">Забрати права адміна</button>`)
                                     : `<button class="btn-small btn-role" onclick="setRole(${u.id}, true)">Зробити адміном</button>`
                                 }
                             </td>
