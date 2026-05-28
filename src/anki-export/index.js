@@ -1,5 +1,5 @@
-import Exporter from './exporter';
-import createTemplate from './template';
+const Exporter = require('./exporter.js');
+const createTemplate = require('./template.js');
 
 let sql;
 
@@ -10,11 +10,12 @@ if (process.env.APP_ENV === 'browser' || typeof window !== 'undefined') {
   sql = require('sql.js');
 }
 
-export { Exporter };
-
-export default function(deckName, template) {
-  return new Exporter(deckName, {
-    template: createTemplate(template),
-    sql
-  });
-}
+module.exports = {
+  Exporter,
+  default: function(deckName, template) {
+    return new Exporter(deckName, {
+      template: createTemplate(template),
+      sql
+    });
+  }
+};

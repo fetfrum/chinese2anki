@@ -1,7 +1,7 @@
-import sha1 from 'sha1';
-import Zip from 'jszip';
+const sha1 = require('sha1');
+const Zip = require('jszip');
 
-export default class {
+class Exporter {
   constructor(deckName, { template, sql }) {
     this.db = new sql.Database();
     this.db.run(template);
@@ -178,7 +178,7 @@ export default class {
   }
 }
 
-export const getLastItem = obj => {
+const getLastItem = obj => {
   const keys = Object.keys(obj);
   const lastKey = keys[keys.length - 1];
 
@@ -187,3 +187,5 @@ export const getLastItem = obj => {
 
   return item;
 };
+
+module.exports = Exporter;
