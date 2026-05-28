@@ -12,39 +12,34 @@
 <body>
 
     <header class="app-header">
-        <a href="/" class="logo-section">
-            <img src="/logo.svg" alt="logo">
-            <div class="logo-text">
-                <h1>Chinese2Anki</h1>
-                <p>Інтелектуальна система створення карток для вивчення китайської мови</p>
+        <div class="header-container">
+            <a href="/" class="logo-section">
+                <img src="/logo.svg" alt="logo">
+                <div class="logo-text">
+                    <h1>Chinese2Anki</h1>
+                    <p>Інтелектуальна система створення карток для вивчення китайської мови</p>
+                </div>
+            </a>
+            <div class="nav-actions">
+                <a href="/profile.html" id="nav-profile" style="display:none;">Профіль</a>
+                <span id="nav-tokens" class="token-badge" style="display:none;">Токени: <span id="token-count">0</span></span>
+                <a href="#" id="logout-btn" style="display:none;">Вийти</a>
+                <a href="/auth/google" id="nav-login" class="btn-primary" style="margin: 0;">Увійти</a>
             </div>
-        </a>
-        <div class="nav-actions">
-            <a href="/profile.html" id="nav-profile" style="display:none;">Профіль</a>
-            <span id="nav-tokens" class="token-badge" style="display:none;">Токени: <span id="token-count">0</span></span>
-            <a href="#" id="logout-btn" style="display:none;">Вийти</a>
-            <a href="/auth/google" id="nav-login" class="btn-primary" style="margin: 0;">Увійти</a>
         </div>
     </header>
 
     <div class="main-wrapper">
         <div class="tabs-container">
-            <button class="tab-btn active" data-target="tab-url">За посиланням</button>
-            <button class="tab-btn" data-target="tab-text">Свій текст</button>
+            <button class="tab-btn active" data-target="tab-text">Свій текст</button>
+            <button class="tab-btn" data-target="tab-url">За посиланням</button>
         </div>
 
         <div class="main-card">
             <!-- Left Side: Forms (3/4) -->
             <div class="form-section">
                 
-                <div id="tab-url" class="tab-content active">
-                    <div class="input-group">
-                        <label for="url-input">Посилання на статтю (китайською)</label>
-                        <input type="text" id="url-input" placeholder="https://zh.wikipedia.org/wiki/...">
-                    </div>
-                </div>
-
-                <div id="tab-text" class="tab-content">
+                <div id="tab-text" class="tab-content active">
                     <div class="input-group">
                         <label for="title-input">Заголовок (Назва колоди)</label>
                         <input type="text" id="title-input" placeholder="Введіть заголовок...">
@@ -52,6 +47,24 @@
                     <div class="input-group">
                         <label for="text-input">Китайський текст</label>
                         <textarea id="text-input" placeholder="Вставте текст тут..."></textarea>
+                    </div>
+                </div>
+
+                <div id="tab-url" class="tab-content">
+                    <div class="input-group">
+                        <label for="url-input">Посилання на статтю (китайською)</label>
+                        <input type="text" id="url-input" placeholder="https://zh.wikipedia.org/wiki/...">
+                    </div>
+                    
+                    <div id="url-fetched-area" style="display: none; flex-direction: column; flex: 1;">
+                        <div class="input-group">
+                            <label for="url-title-input">Заголовок (Назва колоди)</label>
+                            <input type="text" id="url-title-input">
+                        </div>
+                        <div class="input-group" style="flex: 1;">
+                            <label for="url-text-input">Отриманий текст (можна редагувати)</label>
+                            <textarea id="url-text-input"></textarea>
+                        </div>
                     </div>
                 </div>
 
@@ -65,7 +78,7 @@
                 </div>
 
                 <div class="action-footer">
-                    <button id="generate-btn" class="btn-primary">Згенерувати колоду</button>
+                    <button id="generate-btn" class="btn-primary" disabled>Згенерувати колоду</button>
                 </div>
             </div>
 
@@ -74,30 +87,55 @@
                 <h3 style="font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Налаштування</h3>
                 
                 <div class="setting-item">
-                    <label for="hsk-to">Цільовий рівень HSK</label>
-                    <select id="hsk-to">
-                        <option value="1">HSK 1</option>
-                        <option value="2">HSK 2</option>
-                        <option value="3">HSK 3</option>
-                        <option value="4">HSK 4</option>
-                        <option value="5">HSK 5</option>
-                        <option value="6" selected>HSK 6</option>
-                        <option value="79">HSK 7-9</option>
-                    </select>
+                    <div class="hsk-range">
+                        <div>
+                            <label for="hsk-from">Рівень HSK (Від)</label>
+                            <select id="hsk-from">
+                                <option value="1">HSK 1 (включно з найпростішими словами)</option>
+                                <option value="2">HSK 2</option>
+                                <option value="3">HSK 3</option>
+                                <option value="4">HSK 4</option>
+                                <option value="5">HSK 5</option>
+                                <option value="6">HSK 6</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="hsk-to">Рівень HSK (До)</label>
+                            <select id="hsk-to">
+                                <option value="1">HSK 1</option>
+                                <option value="2">HSK 2</option>
+                                <option value="3">HSK 3</option>
+                                <option value="4">HSK 4</option>
+                                <option value="5">HSK 5</option>
+                                <option value="6" selected>HSK 6</option>
+                                <option value="79">Будь-які слова поза HSK</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="setting-item">
-                    <label>Режим вилучення слів</label>
+                    <label>Додавати в словник:</label>
                     <div class="radio-group">
                         <label class="radio-label">
                             <input name="extract-mode" type="radio" value="words" checked>
-                            <span>Тільки слова та чанки</span>
+                            <span>Тільки слова</span>
+                        </label>
+                        <label class="radio-label">
+                            <input name="extract-mode" type="radio" value="chunks">
+                            <span>Слова та вирази</span>
                         </label>
                         <label class="radio-label">
                             <input name="extract-mode" type="radio" value="sentences">
-                            <span>Додавати контекстні речення</span>
+                            <span>Слова, вирази, короткі речення</span>
                         </label>
                     </div>
+                </div>
+
+                <!-- Dynamic Estimation Block -->
+                <div style="margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 20px;">
+                    <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 5px;">Орієнтовна кількість карток:</p>
+                    <h2 id="cost-estimate" style="color: var(--primary); font-size: 2rem;">0</h2>
                 </div>
             </div>
         </div>

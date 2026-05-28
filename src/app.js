@@ -125,9 +125,9 @@ app.post('/api/scrape', checkAuth, async (req, res) => {
 });
 
 app.post('/api/estimate', checkAuth, (req, res) => {
-    const { text, mode, hskLevel } = req.body;
-    const result = processText(text, hskLevel || 6, mode || 'words');
-    res.json({ estimatedCards: result.estimatedCards, maxLevel: hskLevel, mode });
+    const { text, mode, hskFrom, hskTo } = req.body;
+    const result = processText(text, parseInt(hskFrom) || 1, parseInt(hskTo) || 6, mode || 'words');
+    res.json({ estimatedCards: result.estimatedCards, maxLevel: hskTo, mode });
 });
 
 app.post('/api/ai-request', checkAuth, async (req, res) => {
@@ -138,7 +138,7 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
         fs.mkdirSync(sessionPath, { recursive: true });
 
         // 1. Process text
-        const parsedData = processText(text, hskTo || 6, mode || 'words');
+        const parsedData = processText(text, parseInt(hskFrom) || 1, parseInt(hskTo) || 6, mode || 'words');
         
         // Ensure user has tokens
         if (req.user.tokens_remaining <= 0) {
@@ -155,8 +155,13 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
                 await agent.init();
                 
                 const promptTemplate = fs.readFileSync(path.join(__dirname, '..', 'prompts', 'news_scraper.md'), 'utf8');
-                const p = promptTemplate.replace('HSK 1-6', `HSK ${hskFrom || 1}-${hskTo || 6}`);
-                const fullPrompt = `${p}\n\n=== DATA ===\n` + JSON.stringify(parsedData.words.concat(parsedData.chunks).concat(parsedData.sentences));
+                const p = promptTemplate.replace('HSK 1-6', `HSK ${hskFrom || 1}-${hskTo == 79 ? 'Будь-які' : hskTo || 6}`);
+                
+                let dataToFeed = parsedData.words;
+                if (mode === 'chunks' || mode === 'sentences') dataToFeed = dataToFeed.concat(parsedData.chunks);
+                if (mode === 'sentences') dataToFeed = dataToFeed.concat(parsedData.sentences);
+                
+                const fullPrompt = `${p}\n\n=== DATA ===\n` + JSON.stringify(dataToFeed);
                 
                 const resultStr = await agent.callAI(fullPrompt);
                 const resultJson = JSON.parse(resultStr);

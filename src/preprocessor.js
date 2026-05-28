@@ -21,8 +21,8 @@ function getHSKLevel(word) {
     return hskMap[word] || 99; // 99 means non-HSK or proper noun
 }
 
-function processText(text, maxHskLevel = 6, mode = 'all') {
-    // mode: 'words', 'expressions', 'all'
+function processText(text, hskFrom = 1, hskTo = 6, mode = 'words') {
+    // modes: 'words', 'chunks', 'sentences'
     const tokens = segmentit.doSegment(text);
     
     const uniqueWords = new Map(); // word -> context
@@ -35,22 +35,22 @@ function processText(text, maxHskLevel = 6, mode = 'all') {
         currentSentence.push(token);
         
         if (PUNCTUATION.has(token.w)) {
-            processSentence(currentSentence, uniqueWords, chunks, sentences, maxHskLevel, mode);
+            processSentence(currentSentence, uniqueWords, chunks, sentences, hskFrom, hskTo, mode);
             currentSentence = [];
         }
     }
     
     if (currentSentence.length > 0) {
-        processSentence(currentSentence, uniqueWords, chunks, sentences, maxHskLevel, mode);
+        processSentence(currentSentence, uniqueWords, chunks, sentences, hskFrom, hskTo, mode);
     }
     
-    // Estimate card count: words + chunks + sentences (roughly)
-    let estimatedCards = 0;
-    if (mode === 'words' || mode === 'all') estimatedCards += uniqueWords.size;
-    if (mode === 'expressions' || mode === 'all') {
-        // We let LLM pick expressions from chunks/sentences.
-        // We'll estimate 1 expression per 2 sentences/chunks.
-        estimatedCards += Math.floor((chunks.length + sentences.length) / 2);
+    // Estimate card count
+    let estimatedCards = uniqueWords.size;
+    if (mode === 'chunks' || mode === 'sentences') {
+        estimatedCards += Math.floor(chunks.length / 2);
+    }
+    if (mode === 'sentences') {
+        estimatedCards += Math.floor(sentences.length / 2);
     }
     
     return {
@@ -62,7 +62,7 @@ function processText(text, maxHskLevel = 6, mode = 'all') {
     };
 }
 
-function processSentence(tokenObjs, uniqueWordsMap, chunksOut, sentencesOut, maxHskLevel, mode) {
+function processSentence(tokenObjs, uniqueWordsMap, chunksOut, sentencesOut, hskFrom, hskTo, mode) {
     // Filter out punctuation for counting real words
     const realWords = tokenObjs.filter(t => !PUNCTUATION.has(t.w) && !CLAUSE_PUNCTUATION.has(t.w));
     if (realWords.length === 0) return;
@@ -70,23 +70,21 @@ function processSentence(tokenObjs, uniqueWordsMap, chunksOut, sentencesOut, max
     const sentenceText = tokenObjs.map(t => t.w).join('');
     
     // Process single words
-    if (mode === 'words' || mode === 'all') {
-        for (const rw of realWords) {
-            const level = getHSKLevel(rw.w);
-            if (level <= maxHskLevel) {
-                if (!uniqueWordsMap.has(rw.w)) {
-                    uniqueWordsMap.set(rw.w, sentenceText);
-                }
+    for (const rw of realWords) {
+        const level = getHSKLevel(rw.w);
+        if (level >= hskFrom && level <= hskTo) {
+            if (!uniqueWordsMap.has(rw.w)) {
+                uniqueWordsMap.set(rw.w, sentenceText);
             }
         }
     }
     
     if (mode === 'words') return; // Skip chunks/sentences if only words
     
-    // Check sentence difficulty (highest HSK level in sentence)
+    // Check sentence difficulty
     const highestLevel = Math.max(...realWords.map(rw => getHSKLevel(rw.w)));
-    if (highestLevel > maxHskLevel + 1) {
-        // Skip sentences that are way above the allowed level
+    if (highestLevel > hskTo + 1 && hskTo < 79) {
+        // Skip sentences that are way above the allowed level, unless "Any" (79) is selected
         return;
     }
     
@@ -114,7 +112,11 @@ function processSentence(tokenObjs, uniqueWordsMap, chunksOut, sentencesOut, max
             chunksOut.push(currentChunk.map(x => x.w).join(''));
         }
     } else {
-        sentencesOut.push(sentenceText);
+        if (mode === 'sentences') {
+            sentencesOut.push(sentenceText);
+        } else {
+            chunksOut.push(sentenceText);
+        }
     }
 }
 

@@ -2,9 +2,23 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentUser = null;
     let activeSessionId = null;
     let pollInterval = null;
-
-    // --- Vanilla UI Logic ---
+    let activeTab = 'tab-text';
     
+    let estimationDebounce = null;
+    let urlFetchDebounce = null;
+    let isFetchingUrl = false;
+    let isEstimating = false;
+
+    // Elements
+    const btnGenerate = document.getElementById('generate-btn');
+    const textInput = document.getElementById('text-input');
+    const titleInput = document.getElementById('title-input');
+    const urlInput = document.getElementById('url-input');
+    const urlTextInput = document.getElementById('url-text-input');
+    const urlTitleInput = document.getElementById('url-title-input');
+    const urlFetchedArea = document.getElementById('url-fetched-area');
+    const costEstimate = document.getElementById('cost-estimate');
+
     // Tab switching
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -15,7 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
             tabContents.forEach(c => c.classList.remove('active'));
             
             btn.classList.add('active');
-            document.getElementById(btn.dataset.target).classList.add('active');
+            activeTab = btn.dataset.target;
+            document.getElementById(activeTab).classList.add('active');
+            
+            validateAndEstimate();
         });
     });
 
@@ -27,7 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.innerText = message;
         container.appendChild(toast);
         
-        // Trigger reflow to start transition
         void toast.offsetWidth;
         toast.classList.add('show');
         
@@ -37,19 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     }
 
-    // --- State Restoration ---
-    if (localStorage.getItem('saved_url')) document.getElementById('url-input').value = localStorage.getItem('saved_url');
-    if (localStorage.getItem('saved_title')) document.getElementById('title-input').value = localStorage.getItem('saved_title');
-    if (localStorage.getItem('saved_text')) document.getElementById('text-input').value = localStorage.getItem('saved_text');
-
-    // Save state before login
-    document.getElementById('nav-login').addEventListener('click', () => {
-        localStorage.setItem('saved_url', document.getElementById('url-input').value);
-        localStorage.setItem('saved_title', document.getElementById('title-input').value);
-        localStorage.setItem('saved_text', document.getElementById('text-input').value);
-    });
-
-    // --- Authentication ---
+    // Auth Status
     fetch('/api/auth/status')
         .then(res => res.json())
         .then(data => {
@@ -87,8 +91,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function checkLegals() {
         if (!localStorage.getItem('legals_accepted')) {
-            // Usually we'd show a modal here, but for simplicity we will just accept it behind the scenes for now.
-            // Or we can implement a custom modal in vanilla CSS if needed.
             localStorage.setItem('legals_accepted', 'true');
         }
     }
@@ -98,58 +100,157 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.reload();
     });
 
-    // --- Generate Pipeline ---
-    document.getElementById('generate-btn').addEventListener('click', async () => {
+    function setButtonLoading(isLoading, text = "Згенерувати колоду") {
+        if (isLoading) {
+            btnGenerate.disabled = true;
+            btnGenerate.innerHTML = `<span class="spinner"></span>${text}`;
+        } else {
+            btnGenerate.innerHTML = text;
+            // Validate to see if it should remain disabled
+            btnGenerate.disabled = !isValidInput();
+        }
+    }
+
+    function isValidInput() {
+        if (isFetchingUrl || isEstimating) return false;
+        if (activeTab === 'tab-text') {
+            return titleInput.value.trim().length > 0 && textInput.value.trim().length > 0;
+        } else {
+            // URL Tab
+            return urlTitleInput.value.trim().length > 0 && urlTextInput.value.trim().length > 0;
+        }
+    }
+
+    // Dynamic URL Fetching
+    urlInput.addEventListener('input', () => {
+        const url = urlInput.value.trim();
+        urlFetchedArea.style.display = 'none';
+        urlTitleInput.value = '';
+        urlTextInput.value = '';
+        validateAndEstimate();
+
+        if (!url.startsWith('http')) return;
+
+        clearTimeout(urlFetchDebounce);
+        urlFetchDebounce = setTimeout(async () => {
+            isFetchingUrl = true;
+            setButtonLoading(true, "Завантаження статті...");
+            
+            try {
+                const res = await fetch('/api/scrape', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                
+                if (!res.ok) throw new Error('Failed to fetch');
+                const data = await res.json();
+                
+                urlTitleInput.value = data.title || '';
+                urlTextInput.value = data.text || '';
+                urlFetchedArea.style.display = 'flex';
+                showToast('Текст успішно завантажено!');
+            } catch (e) {
+                showToast('Помилка завантаження URL');
+            } finally {
+                isFetchingUrl = false;
+                validateAndEstimate();
+            }
+        }, 1000);
+    });
+
+    // Inputs triggering validation and estimation
+    const inputsToWatch = [titleInput, textInput, urlTitleInput, urlTextInput, document.getElementById('hsk-from'), document.getElementById('hsk-to')];
+    document.querySelectorAll('input[name="extract-mode"]').forEach(r => inputsToWatch.push(r));
+
+    inputsToWatch.forEach(el => {
+        el.addEventListener('input', validateAndEstimate);
+        el.addEventListener('change', validateAndEstimate);
+    });
+
+    function validateAndEstimate() {
+        if (!isValidInput()) {
+            btnGenerate.disabled = true;
+            costEstimate.innerText = '0';
+            return;
+        }
+
+        const text = activeTab === 'tab-text' ? textInput.value : urlTextInput.value;
+        const hskTo = document.getElementById('hsk-to').value;
+        const mode = document.querySelector('input[name="extract-mode"]:checked').value;
+
+        if (!text.trim()) return;
+
+        clearTimeout(estimationDebounce);
+        estimationDebounce = setTimeout(async () => {
+            isEstimating = true;
+            setButtonLoading(true, "Розрахунок вартості...");
+            
+            try {
+                const estRes = await fetch('/api/estimate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text, url: '', hskTo, mode})
+                });
+                if (!estRes.ok) throw new Error('Estimate failed');
+                const estData = await estRes.json();
+                costEstimate.innerText = `~${estData.estimatedCards}`;
+            } catch (e) {
+                costEstimate.innerText = 'Помилка';
+            } finally {
+                isEstimating = false;
+                setButtonLoading(false, "Згенерувати колоду");
+            }
+        }, 800);
+    }
+
+    // Generate Pipeline
+    btnGenerate.addEventListener('click', async () => {
         if (!currentUser) {
             showToast('Спочатку увійдіть через Google!');
-            localStorage.setItem('saved_url', document.getElementById('url-input').value);
-            localStorage.setItem('saved_title', document.getElementById('title-input').value);
-            localStorage.setItem('saved_text', document.getElementById('text-input').value);
+            localStorage.setItem('saved_tab', activeTab);
+            localStorage.setItem('saved_title', activeTab === 'tab-text' ? titleInput.value : urlTitleInput.value);
+            localStorage.setItem('saved_text', activeTab === 'tab-text' ? textInput.value : urlTextInput.value);
             setTimeout(() => { window.location.href = '/auth/google'; }, 1000);
             return;
         }
 
-        const text = document.getElementById('text-input').value;
-        const url = document.getElementById('url-input').value;
-        const customTitle = document.getElementById('title-input').value;
-        
-        if (!text && !url) return showToast('Заповніть посилання або текст!');
-
+        const text = activeTab === 'tab-text' ? textInput.value : urlTextInput.value;
+        const title = activeTab === 'tab-text' ? titleInput.value : urlTitleInput.value;
+        const hskFrom = document.getElementById('hsk-from').value;
         const hskTo = document.getElementById('hsk-to').value;
         const mode = document.querySelector('input[name="extract-mode"]:checked').value;
 
-        try {
-            document.getElementById('generate-btn').disabled = true;
-            document.getElementById('generate-btn').innerText = 'Оцінка...';
-            
-            const estRes = await fetch('/api/estimate', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({text, url, hskTo, mode})
-            });
-            const estData = await estRes.json();
-            
-            if (!estRes.ok) throw new Error(estData.error || 'Помилка');
-
-            if (!confirm(`Орієнтовна кількість карток: ~${estData.estimatedCards}. З вашого балансу буде знято токени. Продовжити?`)) {
-                document.getElementById('generate-btn').disabled = false;
-                document.getElementById('generate-btn').innerText = 'Згенерувати колоду';
-                return;
-            }
-
-            startAiGeneration(text, url, customTitle, hskTo, mode);
-            
-        } catch (e) {
-            showToast('Помилка оцінки: ' + e.message);
-            document.getElementById('generate-btn').disabled = false;
-            document.getElementById('generate-btn').innerText = 'Згенерувати колоду';
+        if (!confirm(`З вашого балансу буде знято токени (~${costEstimate.innerText}). Продовжити?`)) {
+            return;
         }
+
+        startAiGeneration(text, title, hskFrom, hskTo, mode);
     });
 
-    async function startAiGeneration(text, url, customTitle, hskTo, mode) {
+    // --- State Restoration on Load ---
+    if (localStorage.getItem('saved_text')) {
+        const t = localStorage.getItem('saved_tab') || 'tab-text';
+        if (t === 'tab-text') {
+            titleInput.value = localStorage.getItem('saved_title') || '';
+            textInput.value = localStorage.getItem('saved_text') || '';
+        } else {
+            document.querySelector('[data-target="tab-url"]').click();
+            urlTitleInput.value = localStorage.getItem('saved_title') || '';
+            urlTextInput.value = localStorage.getItem('saved_text') || '';
+            urlFetchedArea.style.display = 'flex';
+        }
+        localStorage.removeItem('saved_tab');
+        localStorage.removeItem('saved_title');
+        localStorage.removeItem('saved_text');
+        validateAndEstimate();
+    }
+
+    async function startAiGeneration(text, customTitle, hskFrom, hskTo, mode) {
         document.getElementById('tab-url').style.display = 'none';
         document.getElementById('tab-text').style.display = 'none';
         document.querySelector('.tabs-container').style.display = 'none';
+        document.querySelector('.settings-section').style.display = 'none';
         
         document.getElementById('progress-card').style.display = 'flex';
         updateProgress('Аналіз тексту AI...', 10);
@@ -158,7 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/ai-request', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({text, url, title: customTitle, hskTo, mode})
+                // Note: passing empty url because we already fetched it client-side
+                body: JSON.stringify({text, url: '', title: customTitle, hskFrom, hskTo, mode})
             });
             const data = await res.json();
             
@@ -194,7 +296,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button id="reset-btn" class="tab-btn" style="margin-top: 15px; text-decoration: underline;">Створити ще</button>
                 `;
                 document.getElementById('reset-btn').addEventListener('click', () => window.location.reload());
-                updateTokenCount();
+                
+                if (currentUser) {
+                    const statusRes = await fetch('/api/auth/status');
+                    const statusData = await statusRes.json();
+                    document.getElementById('token-count').innerText = statusData.user.tokens_remaining;
+                }
             } else if (data.status.startsWith('ERROR')) {
                 clearInterval(pollInterval);
                 showToast(data.status);
@@ -213,20 +320,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resetUI() {
-        document.getElementById('generate-btn').disabled = false;
-        document.getElementById('generate-btn').innerText = 'Згенерувати колоду';
+        setButtonLoading(false, 'Згенерувати колоду');
         document.getElementById('progress-card').style.display = 'none';
+        document.querySelector('.settings-section').style.display = 'flex';
         document.querySelector('.tabs-container').style.display = 'inline-flex';
-        // Restore active tab display based on which button is active
-        const activeTabTarget = document.querySelector('.tab-btn.active').dataset.target;
-        document.getElementById(activeTabTarget).style.display = 'flex';
-    }
-
-    async function updateTokenCount() {
-        const res = await fetch('/api/auth/status');
-        const data = await res.json();
-        if (data.authenticated) {
-            document.getElementById('token-count').innerText = data.user.tokens_remaining;
-        }
+        document.getElementById(activeTab).style.display = 'flex';
     }
 });
