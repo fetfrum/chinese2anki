@@ -5,6 +5,15 @@ document.addEventListener('DOMContentLoaded', function() {
     let activeSessionId = null;
     let pollInterval = null;
 
+    // Always show interface
+    document.getElementById('app-interface').style.display = 'block';
+
+    // Restore saved inputs if any
+    if (localStorage.getItem('saved_url')) document.getElementById('url-input').value = localStorage.getItem('saved_url');
+    if (localStorage.getItem('saved_title')) document.getElementById('title-input').value = localStorage.getItem('saved_title');
+    if (localStorage.getItem('saved_text')) document.getElementById('text-input').value = localStorage.getItem('saved_text');
+    M.updateTextFields();
+
     // Check auth status
     fetch('/api/auth/status')
         .then(res => res.json())
@@ -12,11 +21,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.authenticated) {
                 currentUser = data.user;
                 document.getElementById('nav-login').style.display = 'none';
-                document.getElementById('nav-profile').style.display = 'block';
-                document.getElementById('nav-tokens').style.display = 'block';
-                document.getElementById('nav-logout').style.display = 'block';
+                document.getElementById('nav-profile').style.display = 'flex';
+                document.getElementById('nav-tokens').style.display = 'flex';
+                document.getElementById('nav-logout').style.display = 'flex';
                 document.getElementById('token-count').innerText = currentUser.tokens_remaining;
-                document.getElementById('app-interface').style.display = 'block';
                 
                 checkLegals();
             } else {
@@ -24,6 +32,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             checkGDPR();
         });
+
+    // Save state before login
+    document.getElementById('nav-login').addEventListener('click', () => {
+        localStorage.setItem('saved_url', document.getElementById('url-input').value);
+        localStorage.setItem('saved_title', document.getElementById('title-input').value);
+        localStorage.setItem('saved_text', document.getElementById('text-input').value);
+    });
 
     function checkGDPR() {
         const banner = document.getElementById('gdpr-banner');
@@ -103,8 +118,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Generate Pipeline
     document.getElementById('generate-btn').addEventListener('click', async () => {
+        if (!currentUser) {
+            M.toast({html: 'Спочатку увійдіть через Google!'});
+            // Save state and redirect to login
+            localStorage.setItem('saved_url', document.getElementById('url-input').value);
+            localStorage.setItem('saved_title', document.getElementById('title-input').value);
+            localStorage.setItem('saved_text', document.getElementById('text-input').value);
+            window.location.href = '/auth/google';
+            return;
+        }
+
         const text = document.getElementById('text-input').value;
-        if (!text) return M.toast({html: 'Текст порожній!'});
+        const url = document.getElementById('url-input').value;
+        const customTitle = document.getElementById('title-input').value;
+        
+        if (!text && !url) return M.toast({html: 'Заповніть посилання або текст!'});
 
         const hskTo = document.getElementById('hsk-to').value;
         const mode = document.querySelector('input[name="extract-mode"]:checked').value;
@@ -130,14 +158,14 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.open();
 
             document.getElementById('confirm-generate-btn').onclick = () => {
-                startAiGeneration(text, hskTo, mode);
+                startAiGeneration(text, url, customTitle, hskTo, mode);
             };
         } catch (e) {
             M.toast({html: 'Помилка оцінки: ' + e.message});
         }
     });
 
-    async function startAiGeneration(text, hskTo, mode) {
+    async function startAiGeneration(text, url, customTitle, hskTo, mode) {
         document.getElementById('app-interface').style.display = 'none';
         document.getElementById('progress-card').style.display = 'block';
         updateProgress('Аналіз тексту AI...', true);
@@ -146,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const res = await fetch('/api/ai-request', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({text, hskTo, mode})
+                body: JSON.stringify({text, url, title: customTitle, hskTo, mode})
             });
             const data = await res.json();
             
