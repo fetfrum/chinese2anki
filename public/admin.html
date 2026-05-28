@@ -13,11 +13,12 @@
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
         th { font-weight: 600; color: var(--text-muted); }
         .token-input { width: 80px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; text-align: center; }
-        .btn-small { padding: 6px 12px; font-size: 0.85rem; border-radius: 4px; cursor: pointer; border: none; font-weight: 500; }
+        .btn-small { padding: 6px 12px; font-size: 0.85rem; border-radius: 4px; cursor: pointer; border: none; font-weight: 500; margin-right: 5px; margin-bottom: 5px; }
         .btn-save { background: var(--primary); color: white; }
         .btn-save:hover { background: var(--primary-hover); }
         .btn-ban { background: #e53e3e; color: white; }
         .btn-unban { background: #48bb78; color: white; }
+        .btn-role { background: #4a5568; color: white; }
         .user-pic { width: 32px; height: 32px; border-radius: 50%; vertical-align: middle; margin-right: 10px; }
     </style>
 </head>
@@ -120,6 +121,10 @@
                                     ? `<button class="btn-small btn-unban" onclick="setBan(${u.id}, null)">Розбанити</button>`
                                     : `<button class="btn-small btn-ban" onclick="setBan(${u.id}, '2099-12-31')">Забанити (до 2099)</button>`
                                 }
+                                ${u.is_admin === 1
+                                    ? `<button class="btn-small btn-role" onclick="setRole(${u.id}, false)">Забрати права адміна</button>`
+                                    : `<button class="btn-small btn-role" onclick="setRole(${u.id}, true)">Зробити адміном</button>`
+                                }
                             </td>
                         </tr>`;
                     });
@@ -161,6 +166,23 @@
             .then(data => {
                 if (data.success) {
                     showToast('Статус бана оновлено');
+                    loadUsers(); // refresh table
+                } else {
+                    showToast('Помилка: ' + data.error);
+                }
+            });
+        }
+
+        function setRole(userId, isAdmin) {
+            fetch(`/api/admin/users/${userId}/role`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_admin: isAdmin })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Права користувача оновлено');
                     loadUsers(); // refresh table
                 } else {
                     showToast('Помилка: ' + data.error);

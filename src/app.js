@@ -148,6 +148,16 @@ app.post('/api/admin/users/:id/ban', checkAdmin, (req, res) => {
     });
 });
 
+app.post('/api/admin/users/:id/role', checkAdmin, (req, res) => {
+    const { is_admin } = req.body; 
+    const userId = req.params.id;
+    
+    db.run('UPDATE users SET is_admin = ? WHERE id = ?', [is_admin ? 1 : 0, userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
+
 app.post('/api/scrape', async (req, res) => {
     try {
         const { url } = req.body;
