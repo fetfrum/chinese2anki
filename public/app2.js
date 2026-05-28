@@ -26,13 +26,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
     function checkGDPR() {
+        const banner = document.getElementById('gdpr-banner');
         if (!localStorage.getItem('gdpr_accepted')) {
-            const banner = document.getElementById('gdpr-banner');
-            banner.style.display = 'block';
+            // Small delay to allow CSS transition to work after initial render
+            setTimeout(() => {
+                banner.style.transform = 'translateY(0)';
+                banner.style.opacity = '1';
+            }, 500);
+            
             document.getElementById('gdpr-accept').onclick = () => {
                 localStorage.setItem('gdpr_accepted', 'true');
-                banner.style.display = 'none';
+                banner.style.transform = 'translateY(150%)';
+                banner.style.opacity = '0';
+                setTimeout(() => { banner.style.display = 'none'; }, 500);
             };
+        } else {
+            banner.style.display = 'none';
         }
     }
 
