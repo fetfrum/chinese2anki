@@ -9,6 +9,7 @@ const SQLiteStore = require('connect-sqlite3')(session);
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const { v4: uuidv4 } = require('uuid');
+const JSON5 = require('json5');
 
 const { processText } = require('./preprocessor');
 const AIAgent = require('./ai_agent');
@@ -28,17 +29,18 @@ const REGEN_PER_DAY = 10;
 
 function safeJSONParse(str) {
     try {
-        return JSON.parse(str);
+        return JSON5.parse(str);
     } catch (e) {
-        // Fix trailing commas
+        // Fix trailing commas just in case, though JSON5 handles them.
         let cleaned = str.replace(/,\s*([\]}])/g, '$1');
-        // If it still fails, try to extract just the outermost object
-        const firstBrace = cleaned.indexOf('{');
-        const lastBrace = cleaned.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace !== -1) {
+        // If it still fails, try to extract just the outermost object/array
+        const firstBrace = Math.min(cleaned.indexOf('{') === -1 ? Infinity : cleaned.indexOf('{'), cleaned.indexOf('[') === -1 ? Infinity : cleaned.indexOf('['));
+        const lastBrace = Math.max(cleaned.lastIndexOf('}'), cleaned.lastIndexOf(']'));
+        
+        if (firstBrace !== Infinity && lastBrace !== -1 && firstBrace < lastBrace) {
             cleaned = cleaned.substring(firstBrace, lastBrace + 1);
         }
-        return JSON.parse(cleaned); // Will throw if still invalid
+        return JSON5.parse(cleaned); // Will throw if still invalid
     }
 }
 
