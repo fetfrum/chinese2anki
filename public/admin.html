@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Адмін-панель - Chinese2Anki</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .admin-container { width: 90%; max-width: 1400px; margin: 40px auto; padding: 0; }
+        .admin-card { background: white; border-radius: var(--radius-lg); padding: 30px; box-shadow: var(--shadow-soft); }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+        th { font-weight: 600; color: var(--text-muted); }
+        .token-input { width: 80px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; text-align: center; }
+        .btn-small { padding: 6px 12px; font-size: 0.85rem; border-radius: 4px; cursor: pointer; border: none; font-weight: 500; }
+        .btn-save { background: var(--primary); color: white; }
+        .btn-save:hover { background: var(--primary-hover); }
+        .btn-ban { background: #e53e3e; color: white; }
+        .btn-unban { background: #48bb78; color: white; }
+        .user-pic { width: 32px; height: 32px; border-radius: 50%; vertical-align: middle; margin-right: 10px; }
+    </style>
+</head>
+<body>
+
+    <header class="app-header">
+        <div class="header-container">
+            <a href="/" class="logo-section">
+                <img src="logo_ci_1779933981137.png" alt="logo" style="border-radius: 8px;">
+                <div class="logo-text">
+                    <h1 style="color: var(--text-main);">Chinese2Anki</h1>
+                    <p style="font-weight: 500;">Інтелектуальна система створення карток для вивчення китайської мови</p>
+                </div>
+            </a>
+            <div class="nav-actions">
+                <a href="/profile.html" style="color: var(--text-main); font-weight: 500; text-decoration: none;">Профіль</a>
+                <a href="/" class="btn-primary" style="margin: 0; background: #e1e6eb; color: var(--text-main) !important; padding: 10px 20px; text-decoration: none;">Головна</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="admin-container">
+        <h2 style="margin-bottom: 24px; color: var(--primary);">Управління користувачами</h2>
+        
+        <div class="admin-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Користувач</th>
+                        <th>Токени</th>
+                        <th>Статус / Бан</th>
+                        <th>Дії</th>
+                    </tr>
+                </thead>
+                <tbody id="users-table">
+                    <tr><td colspan="5" style="text-align: center;">Завантаження...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerText = message;
+            container.appendChild(toast);
+            void toast.offsetWidth;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check auth first
+            fetch('/api/auth/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.authenticated || data.user.is_admin !== 1) {
+                        window.location.href = '/';
+                        return;
+                    }
+                    loadUsers();
+                });
+        });
+
+        function loadUsers() {
+            fetch('/api/admin/users')
+                .then(r => {
+                    if (!r.ok) throw new Error('Failed to fetch');
+                    return r.json();
+                })
+                .then(users => {
+                    const tbody = document.getElementById('users-table');
+                    let html = '';
+                    users.forEach(u => {
+                        const isBanned = u.banned_until && new Date(u.banned_until) > new Date();
+                        const banText = isBanned ? `<span style="color:red;font-weight:bold;">Забанений до ${u.banned_until}</span>` : '<span style="color:green;">Активний</span>';
+                        
+                        html += `<tr>
+                            <td>${u.id}</td>
+                            <td>
+                                <img src="${u.picture || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}" class="user-pic" onerror="this.style.display='none'">
+                                <strong>${u.display_name || 'Невідомо'}</strong>
+                                ${u.is_admin === 1 ? '<span style="background:var(--primary);color:white;font-size:0.7rem;padding:2px 6px;border-radius:10px;margin-left:5px;">ADMIN</span>' : ''}
+                            </td>
+                            <td>
+                                <input type="number" id="tokens-${u.id}" class="token-input" value="${u.tokens_remaining}">
+                            </td>
+                            <td>${banText}</td>
+                            <td>
+                                <button class="btn-small btn-save" onclick="updateTokens(${u.id})">Зберегти токени</button>
+                                ${isBanned 
+                                    ? `<button class="btn-small btn-unban" onclick="setBan(${u.id}, null)">Розбанити</button>`
+                                    : `<button class="btn-small btn-ban" onclick="setBan(${u.id}, '2099-12-31')">Забанити (до 2099)</button>`
+                                }
+                            </td>
+                        </tr>`;
+                    });
+                    tbody.innerHTML = html;
+                })
+                .catch(e => {
+                    document.getElementById('users-table').innerHTML = `<tr><td colspan="5" style="text-align:center;color:red;">Помилка завантаження даних (ви не адміністратор?)</td></tr>`;
+                });
+        }
+
+        function updateTokens(userId) {
+            const tokens = parseInt(document.getElementById(`tokens-${userId}`).value);
+            if (isNaN(tokens)) {
+                showToast("Введіть коректне число");
+                return;
+            }
+            fetch(`/api/admin/users/${userId}/tokens`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tokens })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Токени збережено!');
+                } else {
+                    showToast('Помилка: ' + data.error);
+                }
+            });
+        }
+
+        function setBan(userId, dateStr) {
+            fetch(`/api/admin/users/${userId}/ban`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ banned_until: dateStr })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Статус бана оновлено');
+                    loadUsers(); // refresh table
+                } else {
+                    showToast('Помилка: ' + data.error);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

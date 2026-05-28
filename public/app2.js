@@ -65,6 +65,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('logout-btn').style.display = 'flex';
                 document.getElementById('token-count').innerText = currentUser.tokens_remaining;
                 
+                if (currentUser.is_admin === 1) {
+                    const adminBtn = document.getElementById('nav-admin');
+                    if (adminBtn) adminBtn.style.display = 'flex';
+                }
+                
                 checkLegals();
             } else {
                 const loginBtn = document.getElementById('nav-login');

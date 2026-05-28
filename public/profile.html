@@ -30,6 +30,7 @@
                 </div>
             </a>
             <div class="nav-actions">
+                <a href="/admin.html" id="nav-admin" style="display:none; color: var(--primary); font-weight: 600; text-decoration: none;">Адмін-панель</a>
                 <a href="/" class="btn-primary" style="margin: 0; background: #e1e6eb; color: var(--text-main) !important; padding: 10px 20px; text-decoration: none;">Головна</a>
             </div>
         </div>
@@ -92,6 +93,9 @@
                         return;
                     }
                     const user = data.user;
+                    if (user.is_admin === 1) {
+                        document.getElementById('nav-admin').style.display = 'flex';
+                    }
                     document.getElementById('profile-name').innerText = user.display_name;
                     document.getElementById('profile-tokens').innerText = user.tokens_remaining;
                     if (user.picture) {

@@ -112,6 +112,42 @@ function checkAuth(req, res, next) {
     next();
 }
 
+function checkAdmin(req, res, next) {
+    if (!req.isAuthenticated() || req.user.is_admin !== 1) {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
+    next();
+}
+
+// Admin Routes
+app.get('/api/admin/users', checkAdmin, (req, res) => {
+    db.all('SELECT id, google_id, display_name, picture, tokens_remaining, last_reset_date, banned_until, is_admin FROM users', (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+app.post('/api/admin/users/:id/tokens', checkAdmin, (req, res) => {
+    const { tokens } = req.body;
+    const userId = req.params.id;
+    if (typeof tokens !== 'number') return res.status(400).json({ error: 'Invalid tokens' });
+    
+    db.run('UPDATE users SET tokens_remaining = ? WHERE id = ?', [tokens, userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
+
+app.post('/api/admin/users/:id/ban', checkAdmin, (req, res) => {
+    const { banned_until } = req.body; // YYYY-MM-DD or null
+    const userId = req.params.id;
+    
+    db.run('UPDATE users SET banned_until = ? WHERE id = ?', [banned_until || null, userId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
+
 app.post('/api/scrape', async (req, res) => {
     try {
         const { url } = req.body;
