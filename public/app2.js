@@ -340,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data.status === 'COMPLETED') {
                 clearInterval(pollInterval);
-                startExport();
+                showPreview();
             } else if (data.status.startsWith('ERROR')) {
                 clearInterval(pollInterval);
                 showToast(data.status);
@@ -350,6 +350,92 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Poll error', e);
         }
     }
+    
+    let currentCards = [];
+    
+    async function showPreview() {
+        document.getElementById('progress-text').innerText = 'Перевірте та відредагуйте картки:';
+        document.getElementById('progress-bar').style.width = '100%';
+        
+        try {
+            const res = await fetch(`/api/session-vocab/${activeSessionId}`);
+            if (!res.ok) throw new Error('Failed to load vocab');
+            const data = await res.json();
+            currentCards = data.cards || [];
+            
+            renderPreviewTable();
+            
+            document.getElementById('preview-card').style.display = 'flex';
+            document.getElementById('confirm-preview-btn').style.display = 'block';
+            document.getElementById('generate-btn').style.display = 'none';
+            
+        } catch (e) {
+            showToast('Помилка завантаження прев\'ю: ' + e.message);
+            startExport(); // fallback
+        }
+    }
+    
+    function renderPreviewTable() {
+        const tbody = document.getElementById('preview-table-body');
+        tbody.innerHTML = '';
+        
+        currentCards.forEach((card, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${card.hanzi}</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">
+                    <input type="text" value="${card.pinyin}" style="width: 100%; border: none; background: transparent; padding: 4px;" data-idx="${index}" data-field="pinyin">
+                </td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">
+                    <input type="text" value="${card.ukrainian}" style="width: 100%; border: none; background: transparent; padding: 4px;" data-idx="${index}" data-field="ukrainian">
+                </td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--border-color); text-align: center;">
+                    <button class="remove-card-btn" data-idx="${index}" style="background: none; border: none; color: #d32f2f; cursor: pointer; padding: 5px;">✖</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        
+        // Event listeners
+        document.querySelectorAll('.remove-card-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+                currentCards.splice(idx, 1);
+                renderPreviewTable();
+            });
+        });
+        
+        document.querySelectorAll('#preview-table-body input').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+                const field = e.currentTarget.getAttribute('data-field');
+                currentCards[idx][field] = e.currentTarget.value;
+            });
+        });
+    }
+
+    document.getElementById('confirm-preview-btn').addEventListener('click', async () => {
+        const btn = document.getElementById('confirm-preview-btn');
+        btn.disabled = true;
+        btn.innerText = 'Збереження...';
+        
+        try {
+            const res = await fetch('/api/update-vocab', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: activeSessionId, cards: currentCards })
+            });
+            if (!res.ok) throw new Error('Failed to save edits');
+            
+            document.getElementById('preview-card').style.display = 'none';
+            btn.style.display = 'none';
+            startExport();
+        } catch (e) {
+            showToast('Помилка збереження: ' + e.message);
+            btn.disabled = false;
+            btn.innerText = 'Озвучити та упакувати APKG';
+        }
+    });
 
     async function startExport() {
         updateProgress('Генерація аудіо та створення колоди...', 50);

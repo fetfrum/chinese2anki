@@ -397,6 +397,34 @@ app.get('/api/ai-status/:sessionId', checkAuth, (req, res) => {
     res.json({ status: status.trim() });
 });
 
+app.get('/api/session-vocab/:sessionId', checkAuth, (req, res) => {
+    const vocabFile = path.join(sessionsDir, req.params.sessionId, 'vocab_news.json');
+    if (!fs.existsSync(vocabFile)) return res.status(404).json({ error: 'Vocab not found' });
+    try {
+        const data = JSON.parse(fs.readFileSync(vocabFile, 'utf8'));
+        res.json(data);
+    } catch (e) {
+        res.status(500).json({ error: 'Parse error' });
+    }
+});
+
+app.post('/api/update-vocab', checkAuth, (req, res) => {
+    const { sessionId, cards } = req.body;
+    if (!sessionId || !cards) return res.status(400).json({ error: 'Missing data' });
+    
+    const vocabFile = path.join(sessionsDir, sessionId, 'vocab_news.json');
+    if (!fs.existsSync(vocabFile)) return res.status(404).json({ error: 'Session not found' });
+    
+    try {
+        const data = JSON.parse(fs.readFileSync(vocabFile, 'utf8'));
+        data.cards = cards;
+        fs.writeFileSync(vocabFile, JSON.stringify(data, null, 2), 'utf8');
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to update vocab' });
+    }
+});
+
 const { createDeck } = require('./export_anki');
 const AudioQueue = require('./audio_queue');
 const audioQueue = new AudioQueue(db, dataDir);

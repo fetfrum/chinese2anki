@@ -79,9 +79,31 @@
                         <div id="progress-bar" style="height: 100%; width: 0%; background: var(--primary); transition: width 0.3s; border-radius: 3px;"></div>
                     </div>
                 </div>
+                
+                <!-- Preview / Editor Area -->
+                <div id="preview-card" style="display: none; flex: 1; flex-direction: column; overflow: hidden; margin-top: 20px;">
+                    <h3 style="color: var(--primary); margin-bottom: 15px;">Попередній перегляд карток</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">Видаліть непотрібні слова або виправте помилки перед генерацією аудіо.</p>
+                    <div style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-color); max-height: 400px;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
+                            <thead style="position: sticky; top: 0; background: var(--bg-soft); box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 1;">
+                                <tr>
+                                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color);">Слово</th>
+                                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color);">Піньїнь</th>
+                                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color);">Переклад</th>
+                                    <th style="padding: 10px; text-align: center; border-bottom: 1px solid var(--border-color); width: 60px;">Дія</th>
+                                </tr>
+                            </thead>
+                            <tbody id="preview-table-body">
+                                <!-- Cards will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
 
                 <div class="action-footer">
                     <button id="generate-btn" class="btn-primary" disabled>Згенерувати колоду</button>
+                    <button id="confirm-preview-btn" class="btn-primary" style="display: none; background: #00796b;">Озвучити та упакувати APKG</button>
                 </div>
             </div>
 
