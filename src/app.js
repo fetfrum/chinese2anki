@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
+const selfsigned = require('selfsigned');
 const sqlite3 = require('sqlite3').verbose();
 const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
@@ -16,7 +18,7 @@ const AIAgent = require('./ai_agent');
 const { NewsScraper } = require('./scraper');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const db = new sqlite3.Database(path.join(__dirname, '..', 'users.db'));
 const dataDir = path.join(__dirname, '..', 'data');
@@ -69,21 +71,25 @@ passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID || 'dummy',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'dummy',
     callbackURL: "/auth/google/callback",
-    proxy: true
+    proxy: true,
+    passReqToCallback: true
   },
-  function(accessToken, refreshToken, profile, cb) {
+  function(req, accessToken, refreshToken, profile, cb) {
       db.get('SELECT * FROM users WHERE google_id = ?', [profile.id], (err, row) => {
           if (err) return cb(err);
           const today = new Date().toISOString().split('T')[0];
           
           if (!row) {
-              const pic = profile.photos && profile.photos.length > 0 ? profile.photos[0].value : '';
-              db.run('INSERT INTO users (google_id, display_name, picture, tokens_remaining, last_reset_date) VALUES (?, ?, ?, ?, ?)',
-              [profile.id, profile.displayName, pic, MAX_CARDS, today], function(err) {
-                  if (err) return cb(err);
-                  return cb(null, { id: this.lastID, google_id: profile.id, display_name: profile.displayName, picture: pic, tokens_remaining: MAX_CARDS });
-              });
+              if (!req.session.reg_flow) {
+                  return cb(null, false, { message: 'not_registered' });
+              }
+              req.session.temp_google_profile = {
+                  google_id: profile.id,
+                  pic: profile.photos && profile.photos.length > 0 ? profile.photos[0].value : ''
+              };
+              return cb(null, { is_temp: true });
           } else {
+              req.session.reg_flow = false;
               if (row.banned_until) {
                   const banDate = new Date(row.banned_until);
                   if (new Date() < banDate) {
@@ -113,8 +119,13 @@ passport.use(new GoogleStrategy({
   }
 ));
 
-passport.serializeUser((user, done) => done(null, user.id));
+passport.serializeUser((user, done) => {
+    if (user.is_temp) return done(null, 'temp');
+    done(null, user.id);
+});
+
 passport.deserializeUser((id, done) => {
+    if (id === 'temp') return done(null, { is_temp: true });
     db.get('SELECT * FROM users WHERE id = ?', [id], (err, row) => done(err, row));
 });
 
@@ -133,18 +144,97 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile'] }));
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
-    res.send(`<script>window.opener ? (window.opener.postMessage('auth_success', '*'), window.close()) : window.location.href='/';</script>`);
+app.get('/auth/google', (req, res, next) => {
+    if (req.query.mode === 'register') {
+        req.session.reg_flow = true;
+    } else {
+        req.session.reg_flow = false;
+    }
+    passport.authenticate('google', { scope: ['profile'] })(req, res, next);
+});
+
+app.get('/auth/google/callback', (req, res, next) => {
+    passport.authenticate('google', (err, user, info) => {
+        if (err) return next(err);
+        if (!user) {
+            const msg = info && info.message ? info.message : 'auth_failed';
+            return res.send(`<script>window.opener ? (window.opener.postMessage('auth_failed:' + '${msg}', '*'), window.close()) : window.location.href='/?error=${msg}';</script>`);
+        }
+        
+        if (user.is_temp) {
+            // Google auth passed, now show username modal
+            return res.send(`<script>window.opener ? (window.opener.postMessage('auth_temp_success', '*'), window.close()) : window.location.href='/?show_register_username=true';</script>`);
+        }
+        
+        req.logIn(user, (err) => {
+            if (err) return next(err);
+            return res.send(`<script>window.opener ? (window.opener.postMessage('auth_success', '*'), window.close()) : window.location.href='/';</script>`);
+        });
+    })(req, res, next);
 });
 
 app.get('/api/auth/status', (req, res) => {
+    if (req.user && req.user.is_temp) {
+        return res.json({ authenticated: false });
+    }
     res.json({ authenticated: req.isAuthenticated(), user: req.user });
 });
 
 app.post('/api/auth/logout', (req, res) => {
     req.logout((err) => {
         req.session.destroy(() => { res.clearCookie('connect.sid'); res.json({ success: true }); });
+    });
+});
+
+app.post('/api/register', (req, res, next) => {
+    const { username } = req.body;
+    if (!username || !username.trim()) {
+        return res.status(400).json({ error: 'Username is required' });
+    }
+    const cleanUsername = username.trim();
+    const today = new Date().toISOString().split('T')[0];
+
+    // Check if user already exists with this username
+    db.get('SELECT * FROM users WHERE display_name = ?', [cleanUsername], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (row) {
+            return res.status(400).json({ error: 'Користувач з таким іменем вже існує' });
+        }
+
+        // Get Google details from session if available, otherwise generate local
+        let googleId = 'local_' + uuidv4();
+        let picture = '';
+        if (req.session.temp_google_profile) {
+            googleId = req.session.temp_google_profile.google_id;
+            picture = req.session.temp_google_profile.pic || '';
+        }
+
+        // Insert new user with 300 start tokens
+        db.run('INSERT INTO users (google_id, display_name, picture, tokens_remaining, last_reset_date) VALUES (?, ?, ?, ?, ?)',
+            [googleId, cleanUsername, picture, 300, today], function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                
+                const newUser = {
+                    id: this.lastID,
+                    google_id: googleId,
+                    display_name: cleanUsername,
+                    picture: picture,
+                    tokens_remaining: 300,
+                    last_reset_date: today
+                };
+
+                // Clear temp session
+                req.session.reg_flow = false;
+                req.session.temp_google_profile = null;
+
+                // Log in the registered user manually
+                req.logIn(newUser, (err) => {
+                    if (err) return res.status(500).json({ error: err.message });
+                    writeLog('ACTION', 'User registered and logged in', newUser.id);
+                    res.json({ success: true, user: newUser });
+                });
+            }
+        );
     });
 });
 
@@ -319,9 +409,9 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
                 
                 let dataToFeed = parsedData.dataToFeed || [];
                 
-                writeLog('ACTION', `Відправка даних до AI моделі (Батчами по 25 слів)...`, req.user.id, sessionId);
+                writeLog('ACTION', `Відправка даних до AI моделі (Батчами по 100 слів)...`, req.user.id, sessionId);
                 
-                const BATCH_SIZE = 25;
+                const BATCH_SIZE = 100;
                 const cards = [];
                 let deckTitle = (title && title.trim().length > 0) ? title.trim() : 'Згенерована колода';
 
@@ -548,4 +638,44 @@ app.post('/api/user/delete', checkAuth, (req, res) => {
     });
 });
 
-app.listen(PORT, () => console.log(`🚀 Chinese2Anki server running on http://localhost:${PORT}`));
+(async () => {
+    // Run database migrations before starting the server
+    try {
+        const migrations = require('./migrations/migration_runner');
+        await migrations.run();
+    } catch (e) {
+        console.error('Failed to run database migrations:', e);
+        process.exit(1);
+    }
+
+    const useHttps = process.env.USE_HTTPS !== 'false';
+
+    if (useHttps) {
+        const certsDir = path.join(__dirname, '..', 'data', 'certs');
+        if (!fs.existsSync(certsDir)) fs.mkdirSync(certsDir, { recursive: true });
+
+        const keyPath = path.join(certsDir, 'key.pem');
+        const certPath = path.join(certsDir, 'cert.pem');
+
+        let credentials = {};
+
+        if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
+            console.log('[SSL] Generating self-signed certificate...');
+            const attrs = [{ name: 'commonName', value: 'localhost' }];
+            const pems = await selfsigned.generate(attrs, { days: 365 });
+            fs.writeFileSync(keyPath, pems.private, 'utf8');
+            fs.writeFileSync(certPath, pems.cert, 'utf8');
+            credentials = { key: pems.private, cert: pems.cert };
+        } else {
+            credentials = {
+                key: fs.readFileSync(keyPath, 'utf8'),
+                cert: fs.readFileSync(certPath, 'utf8')
+            };
+        }
+
+        const secureServer = https.createServer(credentials, app);
+        secureServer.listen(PORT, () => console.log(`🚀 Chinese2Anki secure server running on https://localhost:${PORT}`));
+    } else {
+        app.listen(PORT, () => console.log(`🚀 Chinese2Anki server running on http://localhost:${PORT}`));
+    }
+})();
