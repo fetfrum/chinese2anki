@@ -13,26 +13,29 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Deploy to Staging via Rsync
-        env:
-          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Start SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add Host Key to Known Hosts
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H 95.216.15.173 >> ~/.ssh/known_hosts
 
+      - name: Deploy to Staging via Rsync
+        run: |
           # A. Back up production database on server
-          ssh -i ~/.ssh/id_ed25519 fetfrum@95.216.15.173 "cp /home/fetfrum/Chinese2Anki/users.db /home/fetfrum/Chinese2Anki/users.db.bak_\$(date +%F_%H%M%S) || true"
+          ssh fetfrum@95.216.15.173 "cp /home/fetfrum/Chinese2Anki/users.db /home/fetfrum/Chinese2Anki/users.db.bak_\$(date +%F_%H%M%S) || true"
 
           # B. Copy Production DB to Staging for testing (fresh data sync)
-          ssh -i ~/.ssh/id_ed25519 fetfrum@95.216.15.173 "cp /home/fetfrum/Chinese2Anki/users.db /home/fetfrum/Chinese2Anki-staging/users.db || true"
+          ssh fetfrum@95.216.15.173 "cp /home/fetfrum/Chinese2Anki/users.db /home/fetfrum/Chinese2Anki-staging/users.db || true"
 
           # C. Sync source code to Staging directory (excluding DBs, node_modules, and config envs)
-          rsync -ravz -e "ssh -i ~/.ssh/id_ed25519" --exclude 'node_modules' --exclude '.git' --exclude '.github' --exclude 'users.db' --exclude 'sessions.db' --exclude '.env' ./ fetfrum@95.216.15.173:/home/fetfrum/Chinese2Anki-staging/
+          rsync -ravz --exclude 'node_modules' --exclude '.git' --exclude '.github' --exclude 'users.db' --exclude 'sessions.db' --exclude '.env' ./ fetfrum@95.216.15.173:/home/fetfrum/Chinese2Anki-staging/
 
           # D. Install node modules, run migrations, and restart Staging app
-          ssh -i ~/.ssh/id_ed25519 fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki-staging && npm install --omit=dev && node src/migrations/migration_runner.js && pm2 restart chinese2anki-staging"
+          ssh fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki-staging && npm install --omit=dev && node src/migrations/migration_runner.js && pm2 restart chinese2anki-staging"
 
   # 2. Deploy Production job (Awaits manual approval in GitHub UI via Environment)
   deploy-production:
@@ -45,20 +48,23 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Deploy to Production via Rsync
-        env:
-          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Start SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add Host Key to Known Hosts
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H 95.216.15.173 >> ~/.ssh/known_hosts
 
+      - name: Deploy to Production via Rsync
+        run: |
           # A. Back up production database before deployment
-          ssh -i ~/.ssh/id_ed25519 fetfrum@95.216.15.173 "cp /home/fetfrum/Chinese2Anki/users.db /home/fetfrum/Chinese2Anki/users.db.pre_prod_\$(date +%F_%H%M%S)"
+          ssh fetfrum@95.216.15.173 "cp /home/fetfrum/Chinese2Anki/users.db /home/fetfrum/Chinese2Anki/users.db.pre_prod_\$(date +%F_%H%M%S)"
 
           # B. Sync source code to Production directory
-          rsync -ravz -e "ssh -i ~/.ssh/id_ed25519" --exclude 'node_modules' --exclude '.git' --exclude '.github' --exclude 'users.db' --exclude 'sessions.db' --exclude '.env' ./ fetfrum@95.216.15.173:/home/fetfrum/Chinese2Anki/
+          rsync -ravz --exclude 'node_modules' --exclude '.git' --exclude '.github' --exclude 'users.db' --exclude 'sessions.db' --exclude '.env' ./ fetfrum@95.216.15.173:/home/fetfrum/Chinese2Anki/
 
           # C. Install node modules, run migrations, and restart Production app
-          ssh -i ~/.ssh/id_ed25519 fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki && npm install --omit=dev && node src/migrations/migration_runner.js && pm2 restart chinese2anki --update-env"
+          ssh fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki && npm install --omit=dev && node src/migrations/migration_runner.js && pm2 restart chinese2anki --update-env"
