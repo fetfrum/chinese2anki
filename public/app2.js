@@ -66,6 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('token-count').innerText = currentUser.tokens_remaining;
                 
                 checkLegals();
+            } else {
+                const loginBtn = document.getElementById('nav-login');
+                if (loginBtn) loginBtn.style.display = 'inline-flex';
             }
             checkGDPR();
         });
