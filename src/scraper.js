@@ -56,6 +56,7 @@ class NewsScraper {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         
         let html = await page.content();
+        let pageTitle = await page.title();
         await browser.close();
 
         // Use Readability to extract the main article content and ignore UI decorations
@@ -74,7 +75,7 @@ class NewsScraper {
             content = content.substring(0, 20000);
         }
         
-        const title = article ? article.title : '';
+        const title = (article && article.title) ? article.title : pageTitle;
         return { title, content };
     }
 

@@ -124,7 +124,9 @@ app.post('/api/scrape', async (req, res) => {
                 const AIAgent = require('./ai_agent');
                 const agent = new AIAgent({ name: 'Translator' });
                 await agent.init();
-                title = await agent.callAI(`Translate the following title into Ukrainian. Respond ONLY with the translated text, no quotes or additional text:\n${title}`);
+                const aiPromise = agent.callAI(`Translate the following title into Ukrainian. Respond ONLY with the translated text, no quotes or additional text:\n${title}`);
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000));
+                title = await Promise.race([aiPromise, timeoutPromise]);
             } catch (e) {
                 console.error('Translation failed:', e);
             }
