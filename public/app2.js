@@ -27,10 +27,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function checkGDPR() {
         if (!localStorage.getItem('gdpr_accepted')) {
-            const elem = document.getElementById('gdpr-modal');
-            const gdprModal = M.Modal.getInstance(elem) || M.Modal.init(elem);
-            gdprModal.open();
-            document.getElementById('gdpr-accept').onclick = () => localStorage.setItem('gdpr_accepted', 'true');
+            const banner = document.getElementById('gdpr-banner');
+            banner.style.display = 'block';
+            document.getElementById('gdpr-accept').onclick = () => {
+                localStorage.setItem('gdpr_accepted', 'true');
+                banner.style.display = 'none';
+            };
         }
     }
 

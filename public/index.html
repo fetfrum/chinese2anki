@@ -153,14 +153,18 @@
         </div>
     </div>
 
-    <!-- GDPR Modal -->
-    <div id="gdpr-modal" class="modal bottom-sheet">
-        <div class="modal-content">
-            <h4>Політика конфіденційності</h4>
-            <p>Ми використовуємо файли cookie та зберігаємо історію ваших генерацій для роботи сервісу. Використовуючи сервіс, ви погоджуєтеся з нашими правилами.</p>
-        </div>
-        <div class="modal-footer">
-            <a href="#!" id="gdpr-accept" class="modal-close waves-effect waves-green btn teal">Я погоджуюсь</a>
+    <!-- GDPR Banner -->
+    <div id="gdpr-banner" style="display: none; position: fixed; bottom: 20px; left: 0; right: 0; z-index: 1000;">
+        <div class="container">
+            <div class="card-panel grey darken-3 white-text z-depth-3" style="padding: 10px 20px; margin: 0; border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
+                <div style="flex: 1; margin-right: 20px; line-height: 1.2;">
+                    <strong style="margin-right: 5px; font-size: 14px;">Політика конфіденційності:</strong>
+                    <span style="font-size: 13px; color: #ccc;">Ми використовуємо файли cookie та зберігаємо історію генерацій для роботи сервісу.</span>
+                </div>
+                <div>
+                    <a href="#!" id="gdpr-accept" class="waves-effect waves-light btn teal btn-small">Я погоджуюсь</a>
+                </div>
+            </div>
         </div>
     </div>
 
