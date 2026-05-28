@@ -195,18 +195,23 @@ function escapeHtml(value) {
         .replace(/'/g, '&#039;');
 }
 
-function buildMetaHtml(hskRaw) {
-    if (!hskRaw || String(hskRaw).trim() === '' || String(hskRaw) === '0') return '';
-    return `<span class="hsk-badge">HSK${escapeHtml(String(hskRaw).trim())}</span>`;
+function buildMetaHtml(hskRaw, sourceUrl) {
+    let html = '';
+    if (hskRaw && String(hskRaw).trim() !== '' && String(hskRaw) !== '0') {
+        html += `<span class="hsk-badge">HSK${escapeHtml(String(hskRaw).trim())}</span>`;
+    }
+    if (sourceUrl && String(sourceUrl).startsWith('http')) {
+        html += ` <a href="${escapeHtml(sourceUrl)}" class="source-link" target="_blank" style="font-size: 0.7em; color: #888; text-decoration: none; margin-left: 8px;">source</a>`;
+    }
+    return html;
 }
 
-function buildAudioButtonsHtml(pinyins, filenames) {
+function buildAudioButtonsHtml(filenames) {
     if (!filenames || filenames.length === 0) return '';
     let html = '';
     for (let i = 0; i < filenames.length; i++) {
-        const label = pinyins[i] || `Audio ${i + 1}`;
         // Generates identical structure to Duo project
-        html += `<button type="button" class="audio-btn" onclick="var links = document.querySelectorAll('.audio-raw span[data-src], .audio-raw a'); if(links[${i}]) links[${i}].click();">▶ ${escapeHtml(label)}</button> `;
+        html += `<button type="button" class="audio-btn" onclick="var links = document.querySelectorAll('.audio-raw span[data-src], .audio-raw a'); if(links[${i}]) links[${i}].click();">▶</button> `;
     }
     return html;
 }
@@ -249,8 +254,8 @@ async function createDeck(jsonPath, audioDir, outPath) {
             Pinyin: card.pinyin || '',
             Meaning: formatMeaningHtml(card.ukrainian),
             Audio: audioFiles.join(''),
-            AudioButtons: buildAudioButtonsHtml(pinyins, audioFilenames),
-            Meta: buildMetaHtml(hskStr)
+            AudioButtons: buildAudioButtonsHtml(audioFilenames),
+            Meta: buildMetaHtml(hskStr, data.source_url)
         }, { tags: [hskStr ? `HSK${hskStr}` : ''] });
     }
 

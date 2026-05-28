@@ -22,7 +22,7 @@ function getHSKLevel(word) {
 }
 
 function processText(text, hskFrom = 1, hskTo = 6, mode = 'words') {
-    // modes: 'words', 'chunks', 'sentences'
+    // modes: 'words', 'chunks', 'grammar'
     const tokens = segmentit.doSegment(text);
     
     const uniqueWords = new Map(); // word -> context
@@ -44,19 +44,44 @@ function processText(text, hskFrom = 1, hskTo = 6, mode = 'words') {
         processSentence(currentSentence, uniqueWords, chunks, sentences, hskFrom, hskTo, mode);
     }
     
-    // Estimate card count
-    let estimatedCards = uniqueWords.size;
-    if (mode === 'chunks' || mode === 'sentences') {
-        estimatedCards += Math.floor(chunks.length / 2);
-    }
-    if (mode === 'sentences') {
-        estimatedCards += Math.floor(sentences.length / 2);
+    // Convert to target format and sort by HSK
+    const formattedWords = Array.from(uniqueWords.keys()).map(w => {
+        return { type: "word", text: w, context: uniqueWords.get(w), hsk: getHSKLevel(w) };
+    }).sort((a, b) => a.hsk - b.hsk).map(i => { delete i.hsk; return i; });
+
+    let dataToFeed = formattedWords;
+    let estimatedCards = formattedWords.length;
+
+    if (mode === 'chunks' || mode === 'grammar') {
+        const uniqueChunks = Array.from(new Set(chunks)); // simple deduplication
+        dataToFeed = dataToFeed.concat(uniqueChunks.map(c => ({ type: "chunk", text: c, context: c })));
+        estimatedCards += uniqueChunks.length;
     }
     
+    // Grammar regex extraction
+    if (mode === 'grammar') {
+        const grammarPatterns = [
+            /(如果|要是).+(就|那么).+/g,
+            /(因为|由于).+(所以|因此).+/g,
+            /(虽然|尽管).+(但是|可是).+/g,
+            /(不但|不仅).+(而且|还).+/g,
+            /(只有).+(才).+/g,
+            /(只要).+(就).+/g,
+            /(无论|不论).+(都|也).+/g
+        ];
+        sentences.forEach(s => {
+            grammarPatterns.forEach(r => {
+                const match = s.match(r);
+                if (match) {
+                    dataToFeed.push({ type: "grammar", text: match[0], context: s });
+                    estimatedCards++;
+                }
+            });
+        });
+    }
+
     return {
-        words: Array.from(uniqueWords.keys()).map(w => ({ word: w, context: uniqueWords.get(w) })),
-        chunks,
-        sentences,
+        dataToFeed,
         estimatedCards,
         rawTokens: tokens
     };
@@ -81,7 +106,6 @@ function processSentence(tokenObjs, uniqueWordsMap, chunksOut, sentencesOut, hsk
     
     if (mode === 'words') return; // Skip chunks/sentences if only words
     
-    // Split into chunks if > 6 words
     if (realWords.length > 6) {
         // Split by clause punctuation first
         let currentChunk = [];
@@ -105,12 +129,11 @@ function processSentence(tokenObjs, uniqueWordsMap, chunksOut, sentencesOut, hsk
             chunksOut.push(currentChunk.map(x => x.w).join(''));
         }
     } else {
-        if (mode === 'sentences') {
-            sentencesOut.push(sentenceText);
-        } else {
-            chunksOut.push(sentenceText);
-        }
+        chunksOut.push(sentenceText);
     }
+    
+    // Always store sentences for grammar matching
+    sentencesOut.push(sentenceText);
 }
 
 module.exports = { processText, getHSKLevel };

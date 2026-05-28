@@ -294,7 +294,10 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
         
         // Ensure user has tokens
         if (req.user.tokens_remaining <= 0) {
-            return res.status(403).json({ error: 'Негативний або нульовий баланс. Зачекайте відновлення токенів.' });
+            return res.status(403).json({ error: 'Баланс токенів вичерпано. Дочекайтеся відновлення.' });
+        }
+        if (parsedData.estimatedCards > req.user.tokens_remaining) {
+            return res.status(403).json({ error: `Розмір тексту занадто великий. Очікується ~${parsedData.estimatedCards} карток, а ваш баланс становить ${req.user.tokens_remaining} токенів. Будь ласка, зменште текст.` });
         }
 
         // Send status immediately
@@ -312,53 +315,48 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
                 const promptTemplate = fs.readFileSync(path.join(__dirname, '..', 'prompts', 'news_scraper.md'), 'utf8');
                 const p = promptTemplate.replace('HSK 1-6', `HSK ${hskFrom || 1}-${hskTo == 79 ? 'Будь-які' : hskTo || 6}`);
                 
-                let dataToFeed = parsedData.words;
-                if (mode === 'chunks' || mode === 'sentences') dataToFeed = dataToFeed.concat(parsedData.chunks);
-                if (mode === 'sentences') dataToFeed = dataToFeed.concat(parsedData.sentences);
+                let dataToFeed = parsedData.dataToFeed || [];
                 
-                const fullPrompt = `${p}\n\n=== DATA ===\n` + JSON.stringify(dataToFeed);
+                writeLog('ACTION', `Відправка даних до AI моделі (Батчами по 25 слів)...`, req.user.id, sessionId);
                 
-                writeLog('ACTION', `Відправка даних до AI моделі...`, req.user.id, sessionId);
-                const resultStr = await agent.callAI(fullPrompt);
-                
-                writeLog('ACTION', `Отримано відповідь від AI. Обробка...`, req.user.id, sessionId);
-                let resultJson;
-                try {
-                    const lines = resultStr.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('```'));
-                    let deckTitle = (title && title.trim().length > 0) ? title.trim() : 'Згенерована колода';
-                    if (lines.length > 0 && !lines[0].includes('|')) {
-                        const aiTitle = lines.shift(); // First line is title
-                        if (!title || title.trim().length === 0) {
-                            deckTitle = aiTitle;
-                        }
-                    }
+                const BATCH_SIZE = 25;
+                const cards = [];
+                let deckTitle = (title && title.trim().length > 0) ? title.trim() : 'Згенерована колода';
+
+                for (let i = 0; i < dataToFeed.length; i += BATCH_SIZE) {
+                    const batch = dataToFeed.slice(i, i + BATCH_SIZE);
+                    const fullPrompt = `${p}\n\n=== DATA ===\n` + JSON.stringify(batch);
                     
-                    const cards = [];
-                    for (const line of lines) {
-                        if (!line.includes('|')) continue;
-                        const parts = line.split('|').map(p => p.trim());
-                        if (parts.length >= 8) { // 9 fields expected, minimum 8
-                            cards.push({
-                                type: parts[0] || 'word',
-                                hanzi: parts[1] || '',
-                                pinyin: parts[2] || '',
-                                ukrainian: parts[3] || '',
-                                hsk: parseInt(parts[4]) || 0,
-                                pos: parts[5] || '',
-                                example_hanzi: parts[6] || '',
-                                example_pinyin: parts[7] || '',
-                                example_ukr: parts[8] || ''
-                            });
+                    try {
+                        const resultStr = await agent.callAI(fullPrompt);
+                        const lines = resultStr.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('```'));
+                        
+                        for (const line of lines) {
+                            if (!line.includes('|')) continue;
+                            const parts = line.split('|').map(p => p.trim());
+                            if (parts.length >= 8) { // 9 fields expected, minimum 8
+                                cards.push({
+                                    type: parts[0] || 'word',
+                                    hanzi: parts[1] || '',
+                                    pinyin: parts[2] || '',
+                                    ukrainian: parts[5] ? `<b>${parts[5]}</b><br>${parts[3]}<br><i>${parts[6] || ''}<br>${parts[7] || ''}<br>${parts[8] || ''}</i>` : parts[3] || '',
+                                    hsk: parseInt(parts[4]) || 0,
+                                    pos: parts[5] || '',
+                                    example_hanzi: parts[6] || '',
+                                    example_pinyin: parts[7] || '',
+                                    example_ukr: parts[8] || ''
+                                });
+                            }
                         }
+                    } catch (batchErr) {
+                        writeLog('ERROR', `Помилка батчу ${i}: ${batchErr.message}`, req.user.id, sessionId);
                     }
-                    resultJson = { deck_title: deckTitle, cards };
-                    
-                    if (cards.length === 0) {
-                        throw new Error('Жодної картки не знайдено у відповіді AI.');
-                    }
-                } catch (parseErr) {
-                    fs.writeFileSync(path.join(sessionPath, 'failed_output.txt'), resultStr);
-                    throw new Error(`Помилка парсингу тексту від AI. Деталі: ${parseErr.message}`);
+                }
+                
+                let resultJson = { deck_title: deckTitle, cards };
+                
+                if (cards.length === 0) {
+                    throw new Error('Жодної картки не знайдено у відповіді AI.');
                 }
                 
                 fs.writeFileSync(path.join(sessionPath, 'vocab_news.json'), JSON.stringify(resultJson, null, 2));

@@ -81,12 +81,12 @@
                 </div>
                 
                 <!-- Preview / Editor Area -->
-                <div id="preview-card" style="display: none; flex: 1; flex-direction: column; overflow: hidden; margin-top: 20px;">
-                    <h3 style="color: var(--primary); margin-bottom: 15px;">Попередній перегляд карток</h3>
-                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;">Видаліть непотрібні слова або виправте помилки перед генерацією аудіо.</p>
-                    <div style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-color); max-height: 400px;">
+                <div id="preview-card" style="display: none; flex: 1; flex-direction: column; overflow: hidden; margin-top: 10px;">
+                    <h3 style="color: var(--primary); margin-bottom: 5px;">Попередній перегляд карток <span id="word-count-badge" style="background:#e0f2f1;color:#00796b;padding:2px 8px;border-radius:12px;font-size:0.8rem;vertical-align:middle;margin-left:10px;">0 слів</span></h3>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 10px;">Видаліть непотрібні слова або виправте помилки перед генерацією аудіо.</p>
+                    <div style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-color); max-height: calc(100vh - 280px);">
                         <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
-                            <thead style="position: sticky; top: 0; background: var(--bg-soft); box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 1;">
+                            <thead style="position: sticky; top: 0; background: var(--card-bg); box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 10;">
                                 <tr>
                                     <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color);">Слово</th>
                                     <th style="padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color);">Піньїнь</th>
@@ -143,16 +143,16 @@
                     <label>Додавати в словник:</label>
                     <div class="radio-group">
                         <label class="radio-label">
-                            <input name="extract-mode" type="radio" value="words" checked>
-                            <span>Тільки слова</span>
+                            <input name="extract-mode" type="radio" value="words">
+                            <span>Тільки слова (HSK)</span>
                         </label>
                         <label class="radio-label">
-                            <input name="extract-mode" type="radio" value="chunks">
+                            <input name="extract-mode" type="radio" value="chunks" checked>
                             <span>Слова та вирази</span>
                         </label>
                         <label class="radio-label">
-                            <input name="extract-mode" type="radio" value="sentences">
-                            <span>Слова, вирази, короткі речення</span>
+                            <input name="extract-mode" type="radio" value="grammar">
+                            <span>Граматичні конструкції</span>
                         </label>
                     </div>
                 </div>

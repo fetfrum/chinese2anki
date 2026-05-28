@@ -379,6 +379,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('preview-table-body');
         tbody.innerHTML = '';
         
+        const badge = document.getElementById('word-count-badge');
+        if (badge) {
+            badge.textContent = `${currentCards.length} слів`;
+        }
+        
         currentCards.forEach((card, index) => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -474,8 +479,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem('saved_url');
                 
                 document.getElementById('reset-btn').addEventListener('click', () => window.location.reload());
-                updateTokenCount();
                 
+                const badge = document.getElementById('word-count-badge');
+                if (badge) badge.textContent = '0 слів';
+
                 // auto download
                 window.location.href = data.downloadUrl;
             } else if (data.error) {
