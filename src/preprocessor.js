@@ -1,0 +1,121 @@
+const { Segment, useDefault } = require('segmentit');
+const hsk = require('@leonsilicon/hsk3.0');
+
+const segmentit = useDefault(new Segment());
+
+// Pre-compute HSK map
+const hskMap = {};
+[1, 2, 3, 4, 5, 6, 7].forEach(level => {
+    const key = level === 7 ? 'hsk30WordsLevel7to9' : `hsk30WordsLevel${level}`;
+    if (hsk[key]) {
+        hsk[key].forEach(w => {
+            hskMap[w] = level;
+        });
+    }
+});
+
+const PUNCTUATION = new Set(['。', '！', '？', '.', '!', '?', '\n']);
+const CLAUSE_PUNCTUATION = new Set(['，', ',', '、', '：', ':', '；', ';', '“', '”', '‘', '’', '（', '）', '(', ')', '《', '》', '【', '】', '—', '…', ' ', '　']);
+
+function getHSKLevel(word) {
+    return hskMap[word] || 99; // 99 means non-HSK or proper noun
+}
+
+function processText(text, maxHskLevel = 6, mode = 'all') {
+    // mode: 'words', 'expressions', 'all'
+    const tokens = segmentit.doSegment(text);
+    
+    const uniqueWords = new Map(); // word -> context
+    const chunks = [];
+    const sentences = [];
+    
+    let currentSentence = [];
+    
+    for (const token of tokens) {
+        currentSentence.push(token);
+        
+        if (PUNCTUATION.has(token.w)) {
+            processSentence(currentSentence, uniqueWords, chunks, sentences, maxHskLevel, mode);
+            currentSentence = [];
+        }
+    }
+    
+    if (currentSentence.length > 0) {
+        processSentence(currentSentence, uniqueWords, chunks, sentences, maxHskLevel, mode);
+    }
+    
+    // Estimate card count: words + chunks + sentences (roughly)
+    let estimatedCards = 0;
+    if (mode === 'words' || mode === 'all') estimatedCards += uniqueWords.size;
+    if (mode === 'expressions' || mode === 'all') {
+        // We let LLM pick expressions from chunks/sentences.
+        // We'll estimate 1 expression per 2 sentences/chunks.
+        estimatedCards += Math.floor((chunks.length + sentences.length) / 2);
+    }
+    
+    return {
+        words: Array.from(uniqueWords.keys()).map(w => ({ word: w, context: uniqueWords.get(w) })),
+        chunks,
+        sentences,
+        estimatedCards,
+        rawTokens: tokens
+    };
+}
+
+function processSentence(tokenObjs, uniqueWordsMap, chunksOut, sentencesOut, maxHskLevel, mode) {
+    // Filter out punctuation for counting real words
+    const realWords = tokenObjs.filter(t => !PUNCTUATION.has(t.w) && !CLAUSE_PUNCTUATION.has(t.w));
+    if (realWords.length === 0) return;
+    
+    const sentenceText = tokenObjs.map(t => t.w).join('');
+    
+    // Process single words
+    if (mode === 'words' || mode === 'all') {
+        for (const rw of realWords) {
+            const level = getHSKLevel(rw.w);
+            if (level <= maxHskLevel) {
+                if (!uniqueWordsMap.has(rw.w)) {
+                    uniqueWordsMap.set(rw.w, sentenceText);
+                }
+            }
+        }
+    }
+    
+    if (mode === 'words') return; // Skip chunks/sentences if only words
+    
+    // Check sentence difficulty (highest HSK level in sentence)
+    const highestLevel = Math.max(...realWords.map(rw => getHSKLevel(rw.w)));
+    if (highestLevel > maxHskLevel + 1) {
+        // Skip sentences that are way above the allowed level
+        return;
+    }
+    
+    // Split into chunks if > 6 words
+    if (realWords.length > 6) {
+        // Split by clause punctuation first
+        let currentChunk = [];
+        let realWordCount = 0;
+        
+        for (const t of tokenObjs) {
+            currentChunk.push(t);
+            if (!PUNCTUATION.has(t.w) && !CLAUSE_PUNCTUATION.has(t.w)) {
+                realWordCount++;
+            }
+            
+            if (CLAUSE_PUNCTUATION.has(t.w) || realWordCount >= 5) {
+                if (realWordCount > 0) {
+                    chunksOut.push(currentChunk.map(x => x.w).join(''));
+                }
+                currentChunk = [];
+                realWordCount = 0;
+            }
+        }
+        if (realWordCount > 0) {
+            chunksOut.push(currentChunk.map(x => x.w).join(''));
+        }
+    } else {
+        sentencesOut.push(sentenceText);
+    }
+}
+
+module.exports = { processText, getHSKLevel };
