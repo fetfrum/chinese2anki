@@ -333,9 +333,7 @@ app.get('/api/ai-status/:sessionId', checkAuth, (req, res) => {
     if (!fs.existsSync(statusFile)) return res.json({ status: 'pending' });
     
     const status = fs.readFileSync(statusFile, 'utf8');
-    if (status.startsWith('ERROR')) return res.json({ status: 'error', message: status });
-    
-    res.json({ status: 'completed' });
+    res.json({ status: status.trim() });
 });
 
 const { createDeck } = require('./export_anki');

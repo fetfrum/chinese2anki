@@ -332,22 +332,54 @@ document.addEventListener('DOMContentLoaded', () => {
     async function pollStatus() {
         if (!activeSessionId) return;
         try {
-            const res = await fetch(`/api/status/${activeSessionId}`);
+            const res = await fetch(`/api/ai-status/${activeSessionId}`);
             const data = await res.json();
 
             let percentage = 20;
-            if (data.status.includes('Звук')) percentage = 60;
-            if (data.status.includes('APKG')) percentage = 90;
-            if (data.status === 'DONE') percentage = 100;
+            updateProgress('Аналіз тексту AI...', percentage);
 
-            updateProgress(data.status, percentage);
+            if (data.status === 'COMPLETED') {
+                clearInterval(pollInterval);
+                startExport();
+            } else if (data.status.startsWith('ERROR')) {
+                clearInterval(pollInterval);
+                showToast(data.status);
+                resetUI();
+            }
+        } catch (e) {
+            console.error('Poll error', e);
+        }
+    }
 
-            if (data.status === 'DONE') {
+    async function startExport() {
+        updateProgress('Генерація аудіо та створення колоди...', 50);
+        pollInterval = setInterval(pollExportStatus, 3000);
+        pollExportStatus(); // call immediately once
+    }
+
+    async function pollExportStatus() {
+        try {
+            const res = await fetch('/api/export-apkg', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({sessionId: activeSessionId})
+            });
+            const data = await res.json();
+
+            if (data.status === 'tts_running') {
+                const prog = data.progress;
+                if (prog.total > 0) {
+                    const pct = 60 + Math.round(((prog.done + prog.error) / prog.total) * 30);
+                    updateProgress(`Озвучування карток: ${prog.done + prog.error} / ${prog.total}`, pct);
+                }
+            } else if (data.status === 'ready') {
                 clearInterval(pollInterval);
                 showToast('Колоду успішно створено!');
+                document.getElementById('progress-bar').style.width = '100%';
+                
                 document.getElementById('progress-card').innerHTML = `
                     <h3 style="color: var(--primary); margin-bottom: 20px;">Готово!</h3>
-                    <a href="/data/sessions/${activeSessionId}/deck.apkg" class="btn-primary" download>Завантажити APKG</a>
+                    <a href="${data.downloadUrl}" class="btn-primary" download>Завантажити APKG</a>
                     <button id="reset-btn" class="tab-btn" style="margin-top: 15px; text-decoration: underline;">Створити ще</button>
                 `;
                 
@@ -356,19 +388,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem('saved_url');
                 
                 document.getElementById('reset-btn').addEventListener('click', () => window.location.reload());
+                updateTokenCount();
                 
-                if (currentUser) {
-                    const statusRes = await fetch('/api/auth/status');
-                    const statusData = await statusRes.json();
-                    document.getElementById('token-count').innerText = statusData.user.tokens_remaining;
-                }
-            } else if (data.status.startsWith('ERROR')) {
+                // auto download
+                window.location.href = data.downloadUrl;
+            } else if (data.error) {
                 clearInterval(pollInterval);
-                showToast(data.status);
+                showToast(data.error);
                 resetUI();
             }
         } catch (e) {
-            console.error('Poll error', e);
+            console.error('Export poll error', e);
         }
     }
 
