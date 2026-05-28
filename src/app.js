@@ -284,7 +284,7 @@ app.post('/api/estimate', (req, res) => {
 
 app.post('/api/ai-request', checkAuth, async (req, res) => {
     try {
-        const { text, url, hskFrom, hskTo, mode } = req.body;
+        const { text, url, title, hskFrom, hskTo, mode } = req.body;
         const sessionId = uuidv4();
         const sessionPath = path.join(sessionsDir, sessionId);
         fs.mkdirSync(sessionPath, { recursive: true });
@@ -325,9 +325,12 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
                 let resultJson;
                 try {
                     const lines = resultStr.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('```'));
-                    let deckTitle = 'Згенерована колода';
+                    let deckTitle = (title && title.trim().length > 0) ? title.trim() : 'Згенерована колода';
                     if (lines.length > 0 && !lines[0].includes('|')) {
-                        deckTitle = lines.shift(); // First line is title
+                        const aiTitle = lines.shift(); // First line is title
+                        if (!title || title.trim().length === 0) {
+                            deckTitle = aiTitle;
+                        }
                     }
                     
                     const cards = [];
@@ -477,8 +480,8 @@ app.get('/api/download/:sessionId', checkAuth, (req, res) => {
         try {
             const data = JSON.parse(fs.readFileSync(path.join(sessionPath, 'vocab_news.json')));
             if (data.deck_title) {
-                // Sanitize filename
-                filename = data.deck_title.replace(/[^a-zA-Z0-9_а-яА-ЯіІїЇєЄ]/g, '_') + '.apkg';
+                // Sanitize filename but keep spaces
+                filename = data.deck_title.replace(/[\\/:*?"<>|]/g, '') + '.apkg';
             }
         } catch(e) {}
         
