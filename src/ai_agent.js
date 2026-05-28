@@ -73,7 +73,8 @@ class AIAgent {
                             { role: 'system', content: 'You are a helpful language assistant. Always output valid JSON.' },
                             { role: 'user', content: prompt }
                         ],
-                        response_format: { type: 'json_object' }
+                        response_format: { type: 'json_object' },
+                        max_tokens: 8192
                     })
                 });
 
@@ -125,7 +126,8 @@ class AIAgent {
                     "messages": [
                         { role: 'system', content: 'You must output valid JSON only.' },
                         { "role": "user", "content": prompt }
-                    ]
+                    ],
+                    "max_tokens": 8192
                 })
             });
             const data = await response.json();

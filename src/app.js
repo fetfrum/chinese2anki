@@ -31,8 +31,22 @@ function safeJSONParse(str) {
     try {
         return JSON5.parse(str);
     } catch (e) {
-        // Fix trailing commas just in case, though JSON5 handles them.
-        let cleaned = str.replace(/,\s*([\]}])/g, '$1');
+        let cleaned = str;
+        
+        // Fix trailing commas
+        cleaned = cleaned.replace(/,\s*([\]}])/g, '$1');
+        
+        // Try to recover from truncated response (e.g. max_tokens limit hit)
+        // Find the last complete object in the cards array
+        const lastCompleteObj = cleaned.lastIndexOf('},');
+        if (lastCompleteObj !== -1) {
+            // Cut off the incomplete object and close the array and root object
+            const truncated = cleaned.substring(0, lastCompleteObj + 1) + '\n  ]\n}';
+            try {
+                return JSON5.parse(truncated);
+            } catch (err2) {}
+        }
+        
         // If it still fails, try to extract just the outermost object/array
         const firstBrace = Math.min(cleaned.indexOf('{') === -1 ? Infinity : cleaned.indexOf('{'), cleaned.indexOf('[') === -1 ? Infinity : cleaned.indexOf('['));
         const lastBrace = Math.max(cleaned.lastIndexOf('}'), cleaned.lastIndexOf(']'));
