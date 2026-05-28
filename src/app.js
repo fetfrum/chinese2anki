@@ -267,10 +267,13 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
 
         // Send status immediately
         res.json({ status: 'started', sessionId });
+        
+        writeLog('ACTION', `Отримано запит на генерацію (режим: ${mode}, HSK: ${hskFrom}-${hskTo})`, req.user.id, sessionId);
 
         // Run AI in background
         (async () => {
             try {
+                writeLog('ACTION', `Ініціалізація AI агента`, req.user.id, sessionId);
                 const agent = new AIAgent();
                 await agent.init();
                 
@@ -283,8 +286,16 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
                 
                 const fullPrompt = `${p}\n\n=== DATA ===\n` + JSON.stringify(dataToFeed);
                 
+                writeLog('ACTION', `Відправка даних до AI моделі...`, req.user.id, sessionId);
                 const resultStr = await agent.callAI(fullPrompt);
-                const resultJson = JSON.parse(resultStr);
+                
+                writeLog('ACTION', `Отримано відповідь від AI. Обробка...`, req.user.id, sessionId);
+                let resultJson;
+                try {
+                    resultJson = JSON.parse(resultStr);
+                } catch (parseErr) {
+                    throw new Error(`Помилка парсингу JSON від AI: ${parseErr.message}`);
+                }
                 
                 fs.writeFileSync(path.join(sessionPath, 'vocab_news.json'), JSON.stringify(resultJson, null, 2));
                 
@@ -300,11 +311,11 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
                 db.run('INSERT INTO generations (user_id, uuid, date, time, deck_name, cards_generated) VALUES (?, ?, ?, ?, ?, ?)',
                     [req.user.id, sessionId, date, time, resultJson.deck_title || 'Unknown', generatedCount]);
                 
-                writeLog('ACTION', `Generated ${generatedCount} cards`, req.user.id, sessionId);
+                writeLog('ACTION', `Успішно згенеровано ${generatedCount} карток`, req.user.id, sessionId);
                 fs.writeFileSync(path.join(sessionPath, 'status.txt'), 'COMPLETED');
             } catch (err) {
                 console.error('AI Error:', err);
-                writeLog('ERROR', `AI Generation error: ${err.message}`, req.user.id, sessionId);
+                writeLog('ERROR', `Помилка генерації AI: ${err.message}`, req.user.id, sessionId);
                 fs.writeFileSync(path.join(sessionPath, 'status.txt'), 'ERROR: ' + err.message);
             }
         })();
