@@ -3,192 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chinese text to Anki cards</title>
-    <!-- Materialize CSS -->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <title>Chinese2Anki - Generate Anki Cards</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="grey lighten-5">
+<body>
 
-    <nav class="white z-depth-1" style="height: auto; min-height: 80px; padding: 10px 0;">
-        <div class="container" style="display: flex; align-items: center; justify-content: space-between; height: 100%;">
-            <a href="/" style="display: flex; align-items: center; max-width: 65%;">
-                <img src="/logo.svg" alt="logo" style="height: 60px; margin-right: 15px; border-radius: 8px;">
-                <div style="display: flex; flex-direction: column; justify-content: center;">
-                    <span class="teal-text text-darken-3" style="font-size: 1.8rem; font-weight: 500; line-height: 1;">Chinese2Anki</span>
-                    <span class="grey-text" style="font-size: 0.95rem; line-height: 1.2; margin-top: 5px;">Інтелектуальна система створення карток для вивчення китайської мови</span>
-                </div>
-            </a>
-            <ul style="display: flex; align-items: center; margin: 0; padding: 0; list-style: none;">
-                <li id="nav-profile" style="display:none; margin-left: 15px;"><a href="/profile.html" class="teal-text" style="display:flex; align-items:center;"><i class="material-icons left" style="margin-right:5px;">account_circle</i>Профіль</a></li>
-                <li id="nav-tokens" style="display:none; margin-left: 15px;"><span class="chip teal white-text" style="margin: 0;">Токени: <span id="token-count">0</span></span></li>
-                <li id="nav-logout" style="display:none; margin-left: 15px;"><a href="#" id="logout-btn" class="teal-text" style="display:flex; align-items:center;"><i class="material-icons left" style="margin-right:5px;">exit_to_app</i>Вийти</a></li>
-                <li id="nav-login" style="margin-left: 15px;"><a href="/auth/google" class="btn blue darken-2 waves-effect waves-light" style="display:flex; align-items:center;"><i class="material-icons left" style="margin-right: 10px;">account_box</i>Google Login</a></li>
-            </ul>
+    <header class="app-header">
+        <a href="/" class="logo-section">
+            <img src="/logo.svg" alt="logo">
+            <div class="logo-text">
+                <h1>Chinese2Anki</h1>
+                <p>Інтелектуальна система створення карток для вивчення китайської мови</p>
+            </div>
+        </a>
+        <div class="nav-actions">
+            <a href="/profile.html" id="nav-profile" style="display:none;">Профіль</a>
+            <span id="nav-tokens" class="token-badge" style="display:none;">Токени: <span id="token-count">0</span></span>
+            <a href="#" id="logout-btn" style="display:none;">Вийти</a>
+            <a href="/auth/google" id="nav-login" class="btn-primary" style="margin: 0;">Увійти</a>
         </div>
-    </nav>
+    </header>
 
-    <div class="container main-content" style="margin-top: 30px;">
-
-        <div id="auth-warning" class="card-panel yellow lighten-4 amber-text text-darken-4 center-align" style="display: none;">
-            Будь ласка, увійдіть за допомогою Google, щоб використовувати сервіс.
+    <div class="main-wrapper">
+        <div class="tabs-container">
+            <button class="tab-btn active" data-target="tab-url">За посиланням</button>
+            <button class="tab-btn" data-target="tab-text">Свій текст</button>
         </div>
 
-        <div id="app-interface" style="display: none;">
-            <div class="row">
-                <div class="col s12 m6">
-                    <div class="card z-depth-2">
-                        <div class="card-content">
-                            <span class="card-title">1. Джерело тексту</span>
-                            
-                            <ul class="tabs tabs-fixed-width" style="margin-bottom: 20px;">
-                                <li class="tab col s6"><a class="active teal-text" href="#tab-url">URL статті</a></li>
-                                <li class="tab col s6"><a class="teal-text" href="#tab-text">Власний текст</a></li>
-                            </ul>
-                            
-                            <div id="tab-url">
-                                <div class="input-field">
-                                    <i class="material-icons prefix">link</i>
-                                    <input id="url-input" type="url" placeholder="https://...">
-                                    <label for="url-input">Посилання</label>
-                                </div>
-                                <div class="center-align">
-                                    <button id="scrape-btn" class="btn waves-effect waves-light teal"><i class="material-icons left">cloud_download</i>Завантажити текст</button>
-                                </div>
-                            </div>
-                            
-                            <div id="tab-text">
-                                <div class="input-field">
-                                    <i class="material-icons prefix">title</i>
-                                    <input id="title-input" type="text" placeholder="Назва колоди">
-                                    <label for="title-input">Заголовок</label>
-                                </div>
-                                <div class="input-field">
-                                    <i class="material-icons prefix">mode_edit</i>
-                                    <textarea id="text-input" class="materialize-textarea" style="height: 150px; overflow-y: auto;"></textarea>
-                                    <label for="text-input">Китайський текст</label>
-                                </div>
-                            </div>
-                        </div>
+        <div class="main-card">
+            <!-- Left Side: Forms (3/4) -->
+            <div class="form-section">
+                
+                <div id="tab-url" class="tab-content active">
+                    <div class="input-group">
+                        <label for="url-input">Посилання на статтю (китайською)</label>
+                        <input type="text" id="url-input" placeholder="https://zh.wikipedia.org/wiki/...">
                     </div>
                 </div>
 
-                <div class="col s12 m6">
-                    <div class="card z-depth-2">
-                        <div class="card-content">
-                            <span class="card-title">2. Налаштування</span>
-                            
-                            <div class="input-field">
-                                <select id="hsk-to">
-                                    <option value="1">HSK 1</option>
-                                    <option value="2">HSK 2</option>
-                                    <option value="3">HSK 3</option>
-                                    <option value="4">HSK 4</option>
-                                    <option value="5">HSK 5</option>
-                                    <option value="6" selected>HSK 6 (За замовчуванням)</option>
-                                    <option value="7">HSK 7-9</option>
-                                    <option value="99">Без обмежень HSK</option>
-                                </select>
-                                <label>Максимальний рівень HSK</label>
-                            </div>
-                            
-                            <p class="grey-text" style="margin-bottom: 15px;">Що вилучати:</p>
-                            <p>
-                                <label>
-                                    <input name="extract-mode" type="radio" value="words" checked />
-                                    <span>Тільки слова</span>
-                                </label>
-                            </p>
-                            <p>
-                                <label>
-                                    <input name="extract-mode" type="radio" value="expressions" />
-                                    <span>Тільки вирази та чанки</span>
-                                </label>
-                            </p>
-                            <p>
-                                <label>
-                                    <input name="extract-mode" type="radio" value="all" />
-                                    <span>Усе (слова + вирази)</span>
-                                </label>
-                            </p>
-
-                            <div class="center-align" style="margin-top: 30px;">
-                                <button id="generate-btn" class="btn-large waves-effect waves-light orange darken-2" style="width: 100%;">
-                                    <i class="material-icons right">flash_on</i>Згенерувати колоду
-                                </button>
-                            </div>
-                        </div>
+                <div id="tab-text" class="tab-content">
+                    <div class="input-group">
+                        <label for="title-input">Заголовок (Назва колоди)</label>
+                        <input type="text" id="title-input" placeholder="Введіть заголовок...">
                     </div>
+                    <div class="input-group">
+                        <label for="text-input">Китайський текст</label>
+                        <textarea id="text-input" placeholder="Вставте текст тут..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Progress / Status Area -->
+                <div id="progress-card" style="display: none; flex: 1; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                    <h3 style="color: var(--primary); margin-bottom: 10px;">Генерація...</h3>
+                    <p id="progress-text" style="color: var(--text-muted); margin-bottom: 20px;">Аналіз тексту AI...</p>
+                    <div style="width: 60%; height: 6px; background: var(--border-color); border-radius: 3px; overflow: hidden; position: relative;">
+                        <div id="progress-bar" style="height: 100%; width: 0%; background: var(--primary); transition: width 0.3s; border-radius: 3px;"></div>
+                    </div>
+                </div>
+
+                <div class="action-footer">
+                    <button id="generate-btn" class="btn-primary">Згенерувати колоду</button>
                 </div>
             </div>
 
-            <!-- Progress Card -->
-            <div id="progress-card" class="card z-depth-1" style="display: none;">
-                <div class="card-content center-align">
-                    <h5 id="progress-text" class="teal-text">Обробка...</h5>
-                    <div class="progress">
-                        <div id="progress-bar" class="indeterminate"></div>
-                    </div>
-                    <p id="progress-subtext" class="grey-text">Зачекайте, будь ласка.</p>
-                    
-                    <div id="download-section" style="display: none; margin-top: 20px;">
-                        <a id="download-btn" href="#" class="btn-large waves-effect waves-light green"><i class="material-icons left">file_download</i>Завантажити .apkg</a>
-                        <p style="margin-top: 10px;"><a id="manual-download" href="#" class="blue-text text-darken-2" style="font-size: 12px;">Якщо завантаження не почалося автоматично, натисніть тут</a></p>
+            <!-- Right Side: Settings (1/4) -->
+            <div class="settings-section">
+                <h3 style="font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Налаштування</h3>
+                
+                <div class="setting-item">
+                    <label for="hsk-to">Цільовий рівень HSK</label>
+                    <select id="hsk-to">
+                        <option value="1">HSK 1</option>
+                        <option value="2">HSK 2</option>
+                        <option value="3">HSK 3</option>
+                        <option value="4">HSK 4</option>
+                        <option value="5">HSK 5</option>
+                        <option value="6" selected>HSK 6</option>
+                        <option value="79">HSK 7-9</option>
+                    </select>
+                </div>
+
+                <div class="setting-item">
+                    <label>Режим вилучення слів</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input name="extract-mode" type="radio" value="words" checked>
+                            <span>Тільки слова та чанки</span>
+                        </label>
+                        <label class="radio-label">
+                            <input name="extract-mode" type="radio" value="sentences">
+                            <span>Додавати контекстні речення</span>
+                        </label>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Modals -->
-    <!-- Estimation Modal -->
-    <div id="estimate-modal" class="modal">
-        <div class="modal-content">
-            <h4>Підтвердження генерації</h4>
-            <p>Орієнтовна кількість карток: <b id="est-cards">0</b></p>
-            <p>У вас на балансі: <b id="est-balance">0</b> карток.</p>
-            <p id="est-warning" class="red-text" style="display:none;">Увага! У вас недостатньо карток. Після генерації ваш баланс стане від'ємним і генерація буде заблокована до відновлення.</p>
-        </div>
-        <div class="modal-footer">
-            <a href="#!" class="modal-close waves-effect waves-red btn-flat">Скасувати</a>
-            <a href="#!" id="confirm-generate-btn" class="modal-close waves-effect waves-green btn teal">Продовжити</a>
         </div>
     </div>
 
     <!-- GDPR Banner -->
-    <div id="gdpr-banner" style="position: fixed; bottom: 20px; left: 0; right: 0; z-index: 1000; transform: translateY(150%); opacity: 0; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);">
-        <div class="container">
-            <div class="card-panel grey darken-3 white-text z-depth-3" style="padding: 10px 20px; margin: 0; border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
-                <div style="flex: 1; margin-right: 20px; line-height: 1.2;">
-                    <strong style="margin-right: 5px; font-size: 14px;">Політика конфіденційності:</strong>
-                    <span style="font-size: 13px; color: #ccc;">Ми використовуємо файли cookie та зберігаємо історію генерацій для роботи сервісу.</span>
-                </div>
-                <div>
-                    <a href="#!" id="gdpr-accept" class="waves-effect waves-light btn teal btn-small">Я погоджуюсь</a>
-                </div>
-            </div>
+    <div id="gdpr-banner" style="position: fixed; bottom: 20px; left: 50%; width: 90%; max-width: 800px; transform: translate(-50%, 150%); opacity: 0; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1000; display: flex; align-items: center; justify-content: space-between; padding: 15px 24px;">
+        <div style="line-height: 1.4;">
+            <strong>Політика конфіденційності:</strong>
+            <span style="color: var(--text-muted); font-size: 0.9rem;">Ми використовуємо файли cookie та зберігаємо історію генерацій для роботи сервісу.</span>
         </div>
+        <button id="gdpr-accept" class="btn-primary" style="padding: 6px 16px; font-size: 0.9rem;">Я погоджуюсь</button>
     </div>
+    
+    <div class="toast-container" id="toast-container"></div>
 
-    <!-- Legal Modal (First Login) -->
-    <div id="legal-modal" class="modal modal-fixed-footer">
-        <div class="modal-content">
-            <h4>Умови використання (LEGALS)</h4>
-            <div id="legal-content">Завантаження...</div>
-            <p>
-                <label>
-                    <input type="checkbox" id="legal-checkbox" />
-                    <span>Я ознайомився і погоджуюсь з умовами. Я розумію, що сервіс не несе відповідальності за авторські права текстів.</span>
-                </label>
-            </p>
-        </div>
-        <div class="modal-footer">
-            <a href="#!" id="legal-accept-btn" class="waves-effect waves-green btn teal disabled">Продовжити</a>
-        </div>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
-    <script src="app2.js"></script>
+    <script src="/app2.js"></script>
 </body>
 </html>
