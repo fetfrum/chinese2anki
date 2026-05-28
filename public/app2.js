@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('nav-login').style.display = 'none';
                 document.getElementById('nav-profile').style.display = 'flex';
                 document.getElementById('nav-tokens').style.display = 'flex';
-                document.getElementById('nav-logout').style.display = 'flex';
+                document.getElementById('logout-btn').style.display = 'flex';
                 document.getElementById('token-count').innerText = currentUser.tokens_remaining;
                 
                 checkLegals();
