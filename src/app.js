@@ -26,6 +26,22 @@ if (!fs.existsSync(sessionsDir)) fs.mkdirSync(sessionsDir, { recursive: true });
 const MAX_CARDS = 300;
 const REGEN_PER_DAY = 10;
 
+function safeJSONParse(str) {
+    try {
+        return JSON.parse(str);
+    } catch (e) {
+        // Fix trailing commas
+        let cleaned = str.replace(/,\s*([\]}])/g, '$1');
+        // If it still fails, try to extract just the outermost object
+        const firstBrace = cleaned.indexOf('{');
+        const lastBrace = cleaned.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+        }
+        return JSON.parse(cleaned); // Will throw if still invalid
+    }
+}
+
 function writeLog(type, message, userId = null, sessionId = null) {
     db.run('INSERT INTO logs (type, message, user_id, session_id) VALUES (?, ?, ?, ?)', [type, message, userId, sessionId], err => {
         if (err) console.error('Failed to write log:', err);
@@ -292,9 +308,10 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
                 writeLog('ACTION', `Отримано відповідь від AI. Обробка...`, req.user.id, sessionId);
                 let resultJson;
                 try {
-                    resultJson = JSON.parse(resultStr);
+                    resultJson = safeJSONParse(resultStr);
                 } catch (parseErr) {
-                    throw new Error(`Помилка парсингу JSON від AI: ${parseErr.message}`);
+                    fs.writeFileSync(path.join(sessionPath, 'failed_output.txt'), resultStr);
+                    throw new Error(`Помилка парсингу JSON від AI. Деталі: ${parseErr.message}`);
                 }
                 
                 fs.writeFileSync(path.join(sessionPath, 'vocab_news.json'), JSON.stringify(resultJson, null, 2));
