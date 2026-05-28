@@ -18,19 +18,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('token-count').innerText = currentUser.tokens_remaining;
                 document.getElementById('app-interface').style.display = 'block';
                 
-                checkLegalsAndGDPR();
+                checkLegals();
             } else {
                 document.getElementById('auth-warning').style.display = 'block';
             }
+            checkGDPR();
         });
 
-    function checkLegalsAndGDPR() {
+    function checkGDPR() {
         if (!localStorage.getItem('gdpr_accepted')) {
-            const gdprModal = M.Modal.getInstance(document.getElementById('gdpr-modal'));
+            const elem = document.getElementById('gdpr-modal');
+            const gdprModal = M.Modal.getInstance(elem) || M.Modal.init(elem);
             gdprModal.open();
             document.getElementById('gdpr-accept').onclick = () => localStorage.setItem('gdpr_accepted', 'true');
         }
+    }
 
+    function checkLegals() {
         if (!localStorage.getItem('legals_accepted')) {
             // Usually we'd fetch LEGALS.md here, for now we hardcode a summary
             document.getElementById('legal-content').innerHTML = `
