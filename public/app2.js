@@ -100,6 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('saved_tab', activeTab);
         localStorage.setItem('saved_title', activeTab === 'tab-text' ? titleInput.value : urlTitleInput.value);
         localStorage.setItem('saved_text', activeTab === 'tab-text' ? textInput.value : urlTextInput.value);
+        localStorage.setItem('saved_url', urlInput.value);
         window.location.href = '/auth/google';
     });
 
@@ -198,7 +199,15 @@ document.addEventListener('DOMContentLoaded', () => {
         el.addEventListener('change', validateAndEstimate);
     });
 
+    function saveState() {
+        localStorage.setItem('saved_tab', activeTab);
+        localStorage.setItem('saved_title', activeTab === 'tab-text' ? titleInput.value : urlTitleInput.value);
+        localStorage.setItem('saved_text', activeTab === 'tab-text' ? textInput.value : urlTextInput.value);
+        localStorage.setItem('saved_url', urlInput.value);
+    }
+
     function validateAndEstimate() {
+        saveState();
         if (!isValidInput()) {
             btnGenerate.disabled = true;
             costEstimate.innerText = '0';
@@ -243,9 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             showToast('Спочатку увійдіть через Google!');
-            localStorage.setItem('saved_tab', activeTab);
-            localStorage.setItem('saved_title', activeTab === 'tab-text' ? titleInput.value : urlTitleInput.value);
-            localStorage.setItem('saved_text', activeTab === 'tab-text' ? textInput.value : urlTextInput.value);
+            saveState();
             setTimeout(() => { window.location.href = '/auth/google'; }, 1000);
             return;
         }
@@ -264,22 +271,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- State Restoration on Load ---
-    if (localStorage.getItem('saved_text')) {
-        const t = localStorage.getItem('saved_tab') || 'tab-text';
-        if (t === 'tab-text') {
+    if (localStorage.getItem('saved_tab')) {
+        const tab = localStorage.getItem('saved_tab');
+        
+        if (tab === 'tab-text') {
             titleInput.value = localStorage.getItem('saved_title') || '';
             textInput.value = localStorage.getItem('saved_text') || '';
         } else {
-            document.querySelector('[data-target="tab-url"]').click();
+            urlInput.value = localStorage.getItem('saved_url') || '';
             urlTitleInput.value = localStorage.getItem('saved_title') || '';
             urlTextInput.value = localStorage.getItem('saved_text') || '';
-            urlFetchedArea.style.display = 'flex';
-            void urlFetchedArea.offsetWidth;
-            urlFetchedArea.classList.add('show');
+            if (urlTextInput.value.trim().length > 0) {
+                urlFetchedArea.style.display = 'flex';
+                void urlFetchedArea.offsetWidth;
+                urlFetchedArea.classList.add('show');
+            }
         }
-        localStorage.removeItem('saved_tab');
-        localStorage.removeItem('saved_title');
-        localStorage.removeItem('saved_text');
+        
+        document.querySelector(`.tab-btn[data-target="${tab}"]`).click();
         validateAndEstimate();
     }
 
@@ -332,6 +341,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <a href="/data/sessions/${activeSessionId}/deck.apkg" class="btn-primary" download>Завантажити APKG</a>
                     <button id="reset-btn" class="tab-btn" style="margin-top: 15px; text-decoration: underline;">Створити ще</button>
                 `;
+                
+                localStorage.removeItem('saved_title');
+                localStorage.removeItem('saved_text');
+                localStorage.removeItem('saved_url');
+                
                 document.getElementById('reset-btn').addEventListener('click', () => window.location.reload());
                 
                 if (currentUser) {
