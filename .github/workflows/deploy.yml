@@ -34,7 +34,47 @@ jobs:
           # C. Sync source code to Staging directory (excluding DBs, node_modules, and config envs)
           rsync -ravz --exclude 'node_modules' --exclude '.git' --exclude '.github' --exclude 'users.db' --exclude 'sessions.db' --exclude '.env' ./ fetfrum@95.216.15.173:/home/fetfrum/Chinese2Anki-staging/
 
-          # D. Install node modules, run migrations, and restart Staging app
+      # D. Generate Staging .env dynamically from GitHub Secrets & non-secret configs
+      - name: Generate Staging .env
+        env:
+          AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
+          AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ADMIN_USER: ${{ secrets.ADMIN_USER }}
+          ADMIN_PASS_HASH: ${{ secrets.ADMIN_PASS_HASH }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          ssh fetfrum@95.216.15.173 "cat << 'EOF' > /home/fetfrum/Chinese2Anki-staging/.env
+          TTS_ENGINE=local
+          AZURE_SPEECH_KEY=$AZURE_SPEECH_KEY
+          AZURE_SPEECH_REGION=$AZURE_SPEECH_REGION
+          AZURE_SPEECH_RATE=-15%
+          AZURE_SPEECH_PITCH=+5%
+          AZURE_SPEECH_STYLE=assistant
+          GEMINI_API_KEY=$GEMINI_API_KEY
+          GEMINI_MODEL=gemini-2.0-flash
+          OPENROUTER_API_KEY=$OPENROUTER_API_KEY
+          USE_ANTIGRAVITY=true
+          DEFAULT_TOKENS=30
+          COST_PER_ATTEMPT=10
+          ADMIN_USER=$ADMIN_USER
+          ADMIN_PASS_HASH=$ADMIN_PASS_HASH
+          SESSION_SECRET=$SESSION_SECRET
+          GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
+          GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
+          DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY
+          PORT=3001
+          NODE_ENV=staging
+          USE_HTTPS=false
+          EOF"
+
+      # E. Install node modules, run migrations, and restart Staging app
+      - name: Build and Start Staging
+        run: |
           ssh fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki-staging && npm install --omit=dev && node src/migrations/migration_runner.js && pm2 restart chinese2anki-staging"
 
   # 2. Deploy Production job (Awaits manual approval in GitHub UI via Environment)
@@ -66,5 +106,45 @@ jobs:
           # B. Sync source code to Production directory
           rsync -ravz --exclude 'node_modules' --exclude '.git' --exclude '.github' --exclude 'users.db' --exclude 'sessions.db' --exclude '.env' ./ fetfrum@95.216.15.173:/home/fetfrum/Chinese2Anki/
 
-          # C. Install node modules, run migrations, and restart Production app
+      # C. Generate Production .env dynamically from GitHub Secrets & non-secret configs
+      - name: Generate Production .env
+        env:
+          AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
+          AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ADMIN_USER: ${{ secrets.ADMIN_USER }}
+          ADMIN_PASS_HASH: ${{ secrets.ADMIN_PASS_HASH }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          ssh fetfrum@95.216.15.173 "cat << 'EOF' > /home/fetfrum/Chinese2Anki/.env
+          TTS_ENGINE=local
+          AZURE_SPEECH_KEY=$AZURE_SPEECH_KEY
+          AZURE_SPEECH_REGION=$AZURE_SPEECH_REGION
+          AZURE_SPEECH_RATE=-15%
+          AZURE_SPEECH_PITCH=+5%
+          AZURE_SPEECH_STYLE=assistant
+          GEMINI_API_KEY=$GEMINI_API_KEY
+          GEMINI_MODEL=gemini-2.0-flash
+          OPENROUTER_API_KEY=$OPENROUTER_API_KEY
+          USE_ANTIGRAVITY=true
+          DEFAULT_TOKENS=30
+          COST_PER_ATTEMPT=10
+          ADMIN_USER=$ADMIN_USER
+          ADMIN_PASS_HASH=$ADMIN_PASS_HASH
+          SESSION_SECRET=$SESSION_SECRET
+          GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
+          GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
+          DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY
+          PORT=3000
+          NODE_ENV=production
+          USE_HTTPS=false
+          EOF"
+
+      # D. Install node modules, run migrations, and restart Production app
+      - name: Build and Start Production
+        run: |
           ssh fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki && npm install --omit=dev && node src/migrations/migration_runner.js && pm2 restart chinese2anki --update-env"
