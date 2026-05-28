@@ -26,6 +26,12 @@ if (!fs.existsSync(sessionsDir)) fs.mkdirSync(sessionsDir, { recursive: true });
 const MAX_CARDS = 300;
 const REGEN_PER_DAY = 10;
 
+function writeLog(type, message, userId = null, sessionId = null) {
+    db.run('INSERT INTO logs (type, message, user_id, session_id) VALUES (?, ?, ?, ?)', [type, message, userId, sessionId], err => {
+        if (err) console.error('Failed to write log:', err);
+    });
+}
+
 // Passport Setup
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID || 'dummy',
@@ -68,6 +74,7 @@ passport.use(new GoogleStrategy({
                       row.tokens_remaining = newTokens;
                   }
               }
+              writeLog('ACTION', 'User logged in', row.id);
               return cb(null, row);
           }
       });
@@ -134,6 +141,7 @@ app.post('/api/admin/users/:id/tokens', checkAdmin, (req, res) => {
     
     db.run('UPDATE users SET tokens_remaining = ? WHERE id = ?', [tokens, userId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
+        writeLog('ACTION', `Admin updated tokens for user ${userId} to ${tokens}`, req.user.id);
         res.json({ success: true });
     });
 });
@@ -144,6 +152,7 @@ app.post('/api/admin/users/:id/ban', checkAdmin, (req, res) => {
     
     db.run('UPDATE users SET banned_until = ? WHERE id = ?', [banned_until || null, userId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
+        writeLog('ACTION', `Admin set ban for user ${userId} to ${banned_until || 'null'}`, req.user.id);
         res.json({ success: true });
     });
 });
@@ -158,7 +167,53 @@ app.post('/api/admin/users/:id/role', checkAdmin, (req, res) => {
     
     db.run('UPDATE users SET is_admin = ? WHERE id = ?', [is_admin ? 1 : 0, userId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
+        writeLog('ACTION', `Changed admin role of user ${userId} to ${is_admin}`, req.user.id);
         res.json({ success: true });
+    });
+});
+
+app.get('/api/admin/logs', checkAdmin, (req, res) => {
+    const { type, page = 1, limit = 50, userId, sessionId } = req.query;
+    const offset = (page - 1) * limit;
+    
+    let query = 'SELECT * FROM logs WHERE 1=1';
+    let params = [];
+    
+    if (type) {
+        query += ' AND type = ?';
+        params.push(type);
+    }
+    if (userId) {
+        query += ' AND user_id = ?';
+        params.push(userId);
+    }
+    if (sessionId) {
+        query += ' AND session_id LIKE ?';
+        params.push(`%${sessionId}%`);
+    }
+    
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), parseInt(offset));
+    
+    db.all(query, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        // Get total count
+        let countQuery = 'SELECT COUNT(*) as count FROM logs WHERE 1=1';
+        let countParams = [];
+        if (type) { countQuery += ' AND type = ?'; countParams.push(type); }
+        if (userId) { countQuery += ' AND user_id = ?'; countParams.push(userId); }
+        if (sessionId) { countQuery += ' AND session_id LIKE ?'; countParams.push(`%${sessionId}%`); }
+        
+        db.get(countQuery, countParams, (err, row) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({
+                data: rows,
+                total: row.count,
+                page: parseInt(page),
+                totalPages: Math.ceil(row.count / limit)
+            });
+        });
     });
 });
 
@@ -184,6 +239,7 @@ app.post('/api/scrape', async (req, res) => {
         
         res.json({ title, content });
     } catch (error) {
+        writeLog('ERROR', `Scraping error: ${error.message}`);
         res.status(500).json({ error: error.message });
     }
 });
@@ -244,9 +300,11 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
                 db.run('INSERT INTO generations (user_id, uuid, date, time, deck_name, cards_generated) VALUES (?, ?, ?, ?, ?, ?)',
                     [req.user.id, sessionId, date, time, resultJson.deck_title || 'Unknown', generatedCount]);
                 
+                writeLog('ACTION', `Generated ${generatedCount} cards`, req.user.id, sessionId);
                 fs.writeFileSync(path.join(sessionPath, 'status.txt'), 'COMPLETED');
             } catch (err) {
                 console.error('AI Error:', err);
+                writeLog('ERROR', `AI Generation error: ${err.message}`, req.user.id, sessionId);
                 fs.writeFileSync(path.join(sessionPath, 'status.txt'), 'ERROR: ' + err.message);
             }
         })();
