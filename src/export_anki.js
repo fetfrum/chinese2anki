@@ -174,15 +174,23 @@ if (typeof togglePinyin !== 'function') {
 `
 };
 
-function formatMeaningHtml(meaning) {
-    if (!meaning) return '';
-    let sanitized = (meaning || '')
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-    // Styling inline pinyin
-    sanitized = sanitized.replace(/\(<i>([^<]+)<\/i>\)/g, '(<i class="inline-pinyin">$1</i>)');
-    return sanitized;
+function formatMeaningHtml(card) {
+    let html = escapeHtml(card.ukrainian || '');
+    if (card.pos) {
+        html = `<b>${escapeHtml(card.pos)}</b><br>${html}`;
+    }
+    if (card.example_hanzi || card.example_ukr) {
+        let examples = [
+            escapeHtml(card.example_hanzi || ''),
+            escapeHtml(card.example_pinyin || ''),
+            escapeHtml(card.example_ukr || '')
+        ].filter(s => s.length > 0).join('<br>');
+        
+        if (examples) {
+            html += `<br><i>${examples}</i>`;
+        }
+    }
+    return html;
 }
 
 function escapeHtml(value) {
@@ -231,9 +239,8 @@ async function createDeck(jsonPath, audioDir, outPath) {
         const pinyins = (card.pinyin || '').split(',').map(s => s.trim()).filter(s => s);
         
         // Resolve directory issues
-        let dir = 'words';
-        if (card.type === 'expression') dir = 'expressions';
-        if (card.type === 'sentence') dir = 'sentences';
+        let dir = card.type + 's';
+        if (card.type === 'grammar') dir = 'grammar';
 
         const audioFiles = [];
         const audioFilenames = [];
@@ -252,7 +259,7 @@ async function createDeck(jsonPath, audioDir, outPath) {
         apkg.addCard({
             Hanzi: card.hanzi || '',
             Pinyin: card.pinyin || '',
-            Meaning: formatMeaningHtml(card.ukrainian),
+            Meaning: formatMeaningHtml(card),
             Audio: audioFiles.join(''),
             AudioButtons: buildAudioButtonsHtml(audioFilenames),
             Meta: buildMetaHtml(hskStr, data.source_url)

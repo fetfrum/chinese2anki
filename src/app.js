@@ -119,7 +119,9 @@ passport.deserializeUser((id, done) => {
 });
 
 app.use(cors());
-app.use(express.json());
+app.use('/media', express.static(path.join(dataDir, 'speech')));
+app.use(express.static('public'));
+app.use(express.json({ limit: '10mb' }));
 app.use(session({
     store: new SQLiteStore({ db: 'sessions.db', dir: path.join(__dirname, '..') }),
     secret: process.env.SESSION_SECRET || 'supersecret',
@@ -339,7 +341,7 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
                                     type: parts[0] || 'word',
                                     hanzi: parts[1] || '',
                                     pinyin: parts[2] || '',
-                                    ukrainian: parts[5] ? `<b>${parts[5]}</b><br>${parts[3]}<br><i>${parts[6] || ''}<br>${parts[7] || ''}<br>${parts[8] || ''}</i>` : parts[3] || '',
+                                    ukrainian: parts[3] || '',
                                     hsk: parseInt(parts[4]) || 0,
                                     pos: parts[5] || '',
                                     example_hanzi: parts[6] || '',
@@ -403,6 +405,29 @@ app.get('/api/session-vocab/:sessionId', checkAuth, (req, res) => {
     if (!fs.existsSync(vocabFile)) return res.status(404).json({ error: 'Vocab not found' });
     try {
         const data = JSON.parse(fs.readFileSync(vocabFile, 'utf8'));
+        
+        // Check for existing audio files
+        if (data.cards) {
+            data.cards.forEach(card => {
+                let dir = card.type + 's';
+                if (card.type === 'grammar') dir = 'grammar';
+                
+                const pinyins = (card.pinyin || '').split(',').map(s => s.trim()).filter(s => s);
+                card.audioExists = false;
+                card.audioUrl = '';
+                
+                for (const p of pinyins) {
+                    const fileName = `${Buffer.from(card.hanzi + '_' + p).toString('base64').replace(/[^a-zA-Z0-9]/g, '')}.mp3`;
+                    const filePath = path.join(dataDir, 'speech', dir, fileName);
+                    if (fs.existsSync(filePath)) {
+                        card.audioExists = true;
+                        card.audioUrl = `/media/${dir}/${fileName}`;
+                        break;
+                    }
+                }
+            });
+        }
+        
         res.json(data);
     } catch (e) {
         res.status(500).json({ error: 'Parse error' });

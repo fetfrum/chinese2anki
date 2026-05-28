@@ -386,8 +386,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         currentCards.forEach((card, index) => {
             const tr = document.createElement('tr');
+            
+            let audioBtn = '';
+            if (card.audioExists && card.audioUrl) {
+                audioBtn = `<button class="preview-play-btn" type="button" style="background: none; border: none; color: var(--primary-color); cursor: pointer; padding: 0 5px; font-size: 1.1em;" onclick="new Audio('${card.audioUrl}').play()">▶</button> `;
+            }
+
             tr.innerHTML = `
-                <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${card.hanzi}</td>
+                <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${audioBtn}${card.hanzi}</td>
                 <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">
                     <input type="text" value="${card.pinyin}" style="width: 100%; border: none; background: transparent; padding: 4px;" data-idx="${index}" data-field="pinyin">
                 </td>
