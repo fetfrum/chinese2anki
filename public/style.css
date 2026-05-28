@@ -248,6 +248,7 @@ input[type="text"]:focus, textarea:focus, select:focus {
 
 .hsk-range {
     display: flex;
+    flex-direction: column;
     gap: 10px;
 }
 .hsk-range > div {

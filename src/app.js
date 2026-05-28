@@ -112,7 +112,7 @@ function checkAuth(req, res, next) {
     next();
 }
 
-app.post('/api/scrape', checkAuth, async (req, res) => {
+app.post('/api/scrape', async (req, res) => {
     try {
         const { url } = req.body;
         if (!url) return res.status(400).json({ error: 'URL required' });
@@ -124,7 +124,7 @@ app.post('/api/scrape', checkAuth, async (req, res) => {
     }
 });
 
-app.post('/api/estimate', checkAuth, (req, res) => {
+app.post('/api/estimate', (req, res) => {
     const { text, mode, hskFrom, hskTo } = req.body;
     const result = processText(text, parseInt(hskFrom) || 1, parseInt(hskTo) || 6, mode || 'words');
     res.json({ estimatedCards: result.estimatedCards, maxLevel: hskTo, mode });
