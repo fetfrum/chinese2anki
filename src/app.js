@@ -147,6 +147,7 @@ app.set('trust proxy', 1);
 const allowedOrigins = [
     'https://chinese2anki.0fx.me',
     'https://anki.0fx.me',
+    'https://anki-testing.0fx.me',
     'http://localhost:3000',
     'https://localhost:3000'
 ];
