@@ -155,7 +155,7 @@ app.use(cors({
     credentials: true
 }));
 app.use('/media', express.static(path.join(dataDir, 'speech')));
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 app.use(express.json({ limit: '10mb' }));
 app.use(session({
     store: new SQLiteStore({ db: 'sessions.db', dir: path.join(__dirname, '..') }),
@@ -171,7 +171,7 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 
 app.get('/auth/google', (req, res, next) => {
     if (req.query.mode === 'register') {
@@ -676,6 +676,11 @@ app.post('/api/user/delete', checkAuth, (req, res) => {
         console.error('Failed to run database migrations:', e);
         process.exit(1);
     }
+
+    // Catch-all route to serve built index.html for React SPA Routing
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, '..', 'frontend', 'dist', 'index.html'));
+    });
 
     const useHttps = process.env.USE_HTTPS !== 'false';
 
