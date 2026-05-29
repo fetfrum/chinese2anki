@@ -26,7 +26,8 @@ app.use((req, res, next) => {
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer-when-downgrade');
-    res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data:; media-src 'self' https: blob: data:; connect-src 'self' https:;");
+    // Hardened CSP: restricted default-src to 'self' and isolated unsafe-inline/unsafe-eval strictly to script-src/style-src
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' https: data:; media-src 'self' https: blob: data:; connect-src 'self' https:;");
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
 });
@@ -143,7 +144,23 @@ passport.deserializeUser((id, done) => {
 });
 
 app.set('trust proxy', 1);
-app.use(cors());
+const allowedOrigins = [
+    'https://chinese2anki.0fx.me',
+    'https://anki.0fx.me',
+    'http://localhost:3000',
+    'https://localhost:3000'
+];
+app.use(cors({
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
+    credentials: true
+}));
 app.use('/media', express.static(path.join(dataDir, 'speech')));
 app.use(express.static('public'));
 app.use(express.json({ limit: '10mb' }));
