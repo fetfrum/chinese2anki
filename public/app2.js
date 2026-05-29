@@ -53,6 +53,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 5000);
     }
 
+    // Check for login errors or registration flow in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('error') && urlParams.get('error') === 'not_registered') {
+        showToast('Користувача не знайдено. Будь ласка, зареєструйтеся!');
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    if (urlParams.has('show_register_username')) {
+        setTimeout(() => {
+            const usernameModal = document.getElementById('register-username-modal');
+            const regUsernameInput = document.getElementById('reg-username-input');
+            if (usernameModal && regUsernameInput) {
+                usernameModal.style.display = 'flex';
+                regUsernameInput.focus();
+            }
+        }, 100);
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     // Auth Status
     fetch('/api/auth/status')
         .then(res => res.json())
@@ -60,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.authenticated) {
                 currentUser = data.user;
                 document.getElementById('nav-login').style.display = 'none';
+                document.getElementById('nav-register').style.display = 'none';
                 document.getElementById('nav-profile').style.display = 'flex';
                 document.getElementById('nav-tokens').style.display = 'flex';
                 document.getElementById('logout-btn').style.display = 'flex';
@@ -74,6 +93,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 const loginBtn = document.getElementById('nav-login');
                 if (loginBtn) loginBtn.style.display = 'inline-flex';
+                const registerBtn = document.getElementById('nav-register');
+                if (registerBtn) registerBtn.style.display = 'inline-flex';
             }
             checkGDPR();
         });
@@ -111,6 +132,93 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('saved_url', urlInput.value);
         window.location.href = '/auth/google';
     });
+
+    // Registration flow events
+    const regBtn = document.getElementById('nav-register');
+    const legalModal = document.getElementById('register-legal-modal');
+    const usernameModal = document.getElementById('register-username-modal');
+    const legalAgreeCheckbox = document.getElementById('legal-agree-checkbox');
+    const legalAcceptBtn = document.getElementById('legal-accept-btn');
+    const legalDeclineBtn = document.getElementById('legal-decline-btn');
+    const usernameCancelBtn = document.getElementById('username-cancel-btn');
+    const usernameSubmitBtn = document.getElementById('username-submit-btn');
+    const regUsernameInput = document.getElementById('reg-username-input');
+
+    if (regBtn) {
+        regBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!localStorage.getItem('gdpr_accepted')) {
+                showToast('Спочатку прийміть умови Політики конфіденційності!');
+                highlightGDPR();
+                return;
+            }
+            legalAgreeCheckbox.checked = false;
+            legalAcceptBtn.disabled = true;
+            legalModal.style.display = 'flex';
+        });
+    }
+
+    if (legalAgreeCheckbox) {
+        legalAgreeCheckbox.addEventListener('change', () => {
+            legalAcceptBtn.disabled = !legalAgreeCheckbox.checked;
+        });
+    }
+
+    if (legalDeclineBtn) {
+        legalDeclineBtn.addEventListener('click', () => {
+            legalModal.style.display = 'none';
+        });
+    }
+
+    if (legalAcceptBtn) {
+        legalAcceptBtn.addEventListener('click', () => {
+            legalModal.style.display = 'none';
+            window.location.href = '/auth/google?mode=register';
+        });
+    }
+
+    if (usernameCancelBtn) {
+        usernameCancelBtn.addEventListener('click', () => {
+            usernameModal.style.display = 'none';
+            legalModal.style.display = 'flex';
+        });
+    }
+
+    if (usernameSubmitBtn) {
+        usernameSubmitBtn.addEventListener('click', async () => {
+            const username = regUsernameInput.value.trim();
+            if (!username) {
+                showToast('Будь ласка, введіть ім\'я користувача!');
+                return;
+            }
+
+            usernameSubmitBtn.disabled = true;
+            usernameSubmitBtn.innerHTML = '<span class="spinner"></span>Реєстрація...';
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Помилка реєстрації');
+                }
+
+                showToast('Реєстрація успішна! Ласкаво просимо!');
+                usernameModal.style.display = 'none';
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } catch (err) {
+                showToast(err.message);
+                usernameSubmitBtn.disabled = false;
+                usernameSubmitBtn.innerHTML = 'Зареєструватися';
+            }
+        });
+    }
 
     function highlightGDPR() {
         const banner = document.getElementById('gdpr-banner');
@@ -200,7 +308,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Inputs triggering validation and estimation
     const inputsToWatch = [titleInput, textInput, urlTitleInput, urlTextInput, document.getElementById('hsk-from'), document.getElementById('hsk-to')];
-    document.querySelectorAll('input[name="extract-mode"]').forEach(r => inputsToWatch.push(r));
+    inputsToWatch.push(document.getElementById('cb-chunks'));
+    inputsToWatch.push(document.getElementById('cb-grammar'));
+
+    function getMode() {
+        let m = 'words';
+        const chunks = document.getElementById('cb-chunks').checked;
+        const grammar = document.getElementById('cb-grammar').checked;
+        if (chunks && grammar) m = 'both';
+        else if (chunks) m = 'chunks';
+        else if (grammar) m = 'grammar';
+        return m;
+    }
 
     inputsToWatch.forEach(el => {
         el.addEventListener('input', validateAndEstimate);
@@ -212,6 +331,10 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('saved_title', activeTab === 'tab-text' ? titleInput.value : urlTitleInput.value);
         localStorage.setItem('saved_text', activeTab === 'tab-text' ? textInput.value : urlTextInput.value);
         localStorage.setItem('saved_url', urlInput.value);
+        localStorage.setItem('saved_hsk_from', document.getElementById('hsk-from').value);
+        localStorage.setItem('saved_hsk_to', document.getElementById('hsk-to').value);
+        localStorage.setItem('saved_cb_chunks', document.getElementById('cb-chunks').checked ? 'true' : 'false');
+        localStorage.setItem('saved_cb_grammar', document.getElementById('cb-grammar').checked ? 'true' : 'false');
     }
 
     function validateAndEstimate() {
@@ -225,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = activeTab === 'tab-text' ? textInput.value : urlTextInput.value;
         const hskFrom = document.getElementById('hsk-from').value;
         const hskTo = document.getElementById('hsk-to').value;
-        const mode = document.querySelector('input[name="extract-mode"]:checked').value;
+        const mode = getMode();
 
         if (!text.trim()) return;
 
@@ -270,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const title = activeTab === 'tab-text' ? titleInput.value : urlTitleInput.value;
         const hskFrom = document.getElementById('hsk-from').value;
         const hskTo = document.getElementById('hsk-to').value;
-        const mode = document.querySelector('input[name="extract-mode"]:checked').value;
+        const mode = getMode();
 
         if (!confirm(`З вашого балансу буде знято токени (~${costEstimate.innerText}). Продовжити?`)) {
             return;
@@ -280,25 +403,66 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- State Restoration on Load ---
-    if (localStorage.getItem('saved_tab')) {
-        const tab = localStorage.getItem('saved_tab');
+    const savedHskFrom = localStorage.getItem('saved_hsk_from');
+    if (savedHskFrom) document.getElementById('hsk-from').value = savedHskFrom;
+
+    const savedHskTo = localStorage.getItem('saved_hsk_to');
+    if (savedHskTo) document.getElementById('hsk-to').value = savedHskTo;
+
+    const savedCbChunks = localStorage.getItem('saved_cb_chunks');
+    if (savedCbChunks !== null) {
+        document.getElementById('cb-chunks').checked = savedCbChunks === 'true';
+    }
+
+    const savedCbGrammar = localStorage.getItem('saved_cb_grammar');
+    if (savedCbGrammar !== null) {
+        document.getElementById('cb-grammar').checked = savedCbGrammar === 'true';
+    }
+
+    const savedSessionId = localStorage.getItem('active_session_id');
+    const savedPhase = localStorage.getItem('active_session_phase');
+
+    if (savedSessionId && savedPhase) {
+        activeSessionId = savedSessionId;
         
-        if (tab === 'tab-text') {
-            titleInput.value = localStorage.getItem('saved_title') || '';
-            textInput.value = localStorage.getItem('saved_text') || '';
-        } else {
-            urlInput.value = localStorage.getItem('saved_url') || '';
-            urlTitleInput.value = localStorage.getItem('saved_title') || '';
-            urlTextInput.value = localStorage.getItem('saved_text') || '';
-            if (urlTextInput.value.trim().length > 0) {
-                urlFetchedArea.style.display = 'flex';
-                void urlFetchedArea.offsetWidth;
-                urlFetchedArea.classList.add('show');
-            }
+        // Hide normal forms, show progress card
+        document.getElementById('tab-url').style.display = 'none';
+        document.getElementById('tab-text').style.display = 'none';
+        document.querySelector('.tabs-container').style.display = 'none';
+        document.querySelector('.settings-section').style.display = 'none';
+
+        if (savedPhase === 'generating') {
+            document.getElementById('progress-card').style.display = 'flex';
+            updateProgress('Аналіз тексту AI...', 10);
+            pollInterval = setInterval(pollStatus, 2000);
+            pollStatus(); // call immediately once
+        } else if (savedPhase === 'preview') {
+            showPreview();
+        } else if (savedPhase === 'exporting') {
+            document.getElementById('progress-card').style.display = 'flex';
+            startExport();
         }
-        
-        document.querySelector(`.tab-btn[data-target="${tab}"]`).click();
-        validateAndEstimate();
+    } else {
+        if (localStorage.getItem('saved_tab')) {
+            const tab = localStorage.getItem('saved_tab');
+            
+            if (tab === 'tab-text') {
+                titleInput.value = localStorage.getItem('saved_title') || '';
+                textInput.value = localStorage.getItem('saved_text') || '';
+            } else {
+                urlInput.value = localStorage.getItem('saved_url') || '';
+                urlTitleInput.value = localStorage.getItem('saved_title') || '';
+                urlTextInput.value = localStorage.getItem('saved_text') || '';
+                if (urlTextInput.value.trim().length > 0) {
+                    urlFetchedArea.style.display = 'flex';
+                    void urlFetchedArea.offsetWidth;
+                    urlFetchedArea.classList.add('show');
+                }
+            }
+            
+            document.querySelector(`.tab-btn[data-target="${tab}"]`).click();
+            validateAndEstimate();
+        }
     }
 
     async function startAiGeneration(text, customTitle, hskFrom, hskTo, mode) {
@@ -321,6 +485,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!res.ok) throw new Error(data.error);
             activeSessionId = data.sessionId;
+            localStorage.setItem('active_session_id', activeSessionId);
+            localStorage.setItem('active_session_phase', 'generating');
             
             pollInterval = setInterval(pollStatus, 2000);
         } catch (e) {
@@ -365,10 +531,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             renderPreviewTable();
             
+            document.getElementById('progress-card').style.display = 'none';
             document.getElementById('preview-card').style.display = 'flex';
             document.getElementById('confirm-preview-btn').style.display = 'block';
             document.getElementById('generate-btn').style.display = 'none';
             
+            localStorage.setItem('active_session_id', activeSessionId);
+            localStorage.setItem('active_session_phase', 'preview');
         } catch (e) {
             showToast('Помилка завантаження прев\'ю: ' + e.message);
             startExport(); // fallback
@@ -449,6 +618,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function startExport() {
+        localStorage.setItem('active_session_id', activeSessionId);
+        localStorage.setItem('active_session_phase', 'exporting');
         updateProgress('Генерація аудіо та створення колоди...', 50);
         pollInterval = setInterval(pollExportStatus, 3000);
         pollExportStatus(); // call immediately once
@@ -483,6 +654,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem('saved_title');
                 localStorage.removeItem('saved_text');
                 localStorage.removeItem('saved_url');
+                localStorage.removeItem('active_session_id');
+                localStorage.removeItem('active_session_phase');
                 
                 document.getElementById('reset-btn').addEventListener('click', () => window.location.reload());
                 
@@ -509,6 +682,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resetUI() {
+        localStorage.removeItem('active_session_id');
+        localStorage.removeItem('active_session_phase');
         setButtonLoading(false, 'Згенерувати колоду');
         document.getElementById('progress-card').style.display = 'none';
         document.querySelector('.settings-section').style.display = 'flex';

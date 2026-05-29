@@ -26,8 +26,8 @@ app.use((req, res, next) => {
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer-when-downgrade');
-    // Hardened CSP: restricted default-src to 'self' and isolated unsafe-inline/unsafe-eval strictly to script-src/style-src
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' https: data:; media-src 'self' https: blob: data:; connect-src 'self' https:;");
+    // Hardened CSP: restricted default-src to 'self' and completely removed unsafe-inline/unsafe-eval from script-src
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' https: data:; media-src 'self' https: blob: data:; connect-src 'self' https:;");
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
 });
@@ -151,14 +151,7 @@ const allowedOrigins = [
     'https://localhost:3000'
 ];
 app.use(cors({
-    origin: function (origin, callback) {
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-            return callback(new Error(msg), false);
-        }
-        return callback(null, true);
-    },
+    origin: allowedOrigins,
     credentials: true
 }));
 app.use('/media', express.static(path.join(dataDir, 'speech')));

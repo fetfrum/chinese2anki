@@ -28,6 +28,7 @@
                 </a>
                 <a href="#" id="logout-btn" style="display:none; color: var(--text-main); font-weight: 500; text-decoration: none;">Вийти</a>
                 <a href="#" id="nav-login" class="btn-primary" style="display:none; margin: 0;">Увійти</a>
+                <a href="#" id="nav-register" class="btn-primary" style="display:none; margin: 0; background: #e0f2f1; color: #00796b !important; border: 1px solid #00796b; margin-left: 10px;">Зареєструватися</a>
             </div>
         </div>
     </header>
@@ -116,12 +117,13 @@
                         <div>
                             <label for="hsk-from">Рівень HSK (Від)</label>
                             <select id="hsk-from">
-                                <option value="1">HSK 1 (включно з найпростішими словами)</option>
+                                <option value="1">HSK 1 (найпростіші службові слова)</option>
                                 <option value="2">HSK 2</option>
                                 <option value="3">HSK 3</option>
                                 <option value="4">HSK 4</option>
                                 <option value="5">HSK 5</option>
                                 <option value="6">HSK 6</option>
+                                <option value="7">HSK 7-9</option>
                             </select>
                         </div>
                         <div>
@@ -133,28 +135,23 @@
                                 <option value="4">HSK 4</option>
                                 <option value="5">HSK 5</option>
                                 <option value="6" selected>HSK 6</option>
-                                <option value="79">Будь-які слова поза HSK</option>
+                                <option value="7">HSK 7-9</option>
+                                <option value="79">Будь-які (не HSK)</option>
                             </select>
                         </div>
                     </div>
                 </div>
 
-                <div class="setting-item">
-                    <label>Додавати в словник:</label>
-                    <div class="radio-group">
-                        <label class="radio-label">
-                            <input name="extract-mode" type="radio" value="words">
-                            <span>Тільки слова (HSK)</span>
-                        </label>
-                        <label class="radio-label">
-                            <input name="extract-mode" type="radio" value="chunks" checked>
-                            <span>Слова та вирази</span>
-                        </label>
-                        <label class="radio-label">
-                            <input name="extract-mode" type="radio" value="grammar">
-                            <span>Граматичні конструкції</span>
-                        </label>
-                    </div>
+                <div class="checkbox-group">
+                    <div style="font-weight: 500; margin-bottom: 10px;">Додавати в словник (слова HSK включені завжди):</div>
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer;">
+                        <input id="cb-chunks" type="checkbox" checked>
+                        <span>Осмислені вирази (чанки)</span>
+                    </label>
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer;">
+                        <input id="cb-grammar" type="checkbox">
+                        <span>Граматичні конструкції</span>
+                    </label>
                 </div>
 
                 <!-- Dynamic Estimation Block -->
@@ -174,7 +171,45 @@
         </div>
         <button id="gdpr-accept" class="btn-primary" style="padding: 6px 16px; font-size: 0.9rem;">Я погоджуюсь</button>
     </div>
-    
+    <!-- Registration Legal Modal -->
+    <div id="register-legal-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <h2>Умови користування та юридична інформація</h2>
+            <div class="modal-legal-content">
+                <p><strong>1. Загальні положення</strong><br>
+                Створюючи обліковий запис у сервісі Chinese2Anki, ви погоджуєтеся з цими умовами використання, нашою політикою конфіденційності та використання файлів cookie.</p>
+                <p style="margin-top: 10px;"><strong>2. Нарахування токенів</strong><br>
+                Кожному новому користувачеві при реєстрації безкоштовно нараховується стартовий баланс у розмірі 300 токенів. Ці токени використовуються для генерації карток Anki.</p>
+                <p style="margin-top: 10px;"><strong>3. Відповідальність</strong><br>
+                Користувач несе повну відповідальність за безпеку свого імені користувача та за будь-які дії, здійснені під його обліковим записом.</p>
+            </div>
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.95rem;">
+                <input type="checkbox" id="legal-agree-checkbox">
+                <span>Я згоден з умовами та юридичною інформацією</span>
+            </label>
+            <div class="modal-actions">
+                <button id="legal-decline-btn" class="btn-secondary">Відмовитися від реєстрації</button>
+                <button id="legal-accept-btn" class="btn-primary" disabled>Прийняти умови</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Registration Username Modal -->
+    <div id="register-username-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <h2>Реєстрація користувача</h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">Будь ласка, введіть бажане ім'я користувача. Після реєстрації вам буде автоматично нараховано 300 стартових токенів.</p>
+            <div>
+                <label for="reg-username-input" style="font-weight: 500; display: block; margin-bottom: 8px;">Ім'я користувача</label>
+                <input type="text" id="reg-username-input" class="modal-input" placeholder="Введіть ваше ім'я..." autocomplete="off">
+            </div>
+            <div class="modal-actions">
+                <button id="username-cancel-btn" class="btn-secondary">Назад</button>
+                <button id="username-submit-btn" class="btn-primary">Зареєструватися</button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast-container" id="toast-container"></div>
 
     <script src="/app2.js"></script>

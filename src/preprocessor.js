@@ -21,6 +21,23 @@ function getHSKLevel(word) {
     return hskMap[word] || 99; // 99 means non-HSK or proper noun
 }
 
+function cleanAndPushChunk(tokenObjs, chunksOut) {
+    let chunkText = tokenObjs.map(x => x.w).join('');
+    let cleaned = chunkText.replace(/^[\s\p{P}\p{S}]+/gu, '').replace(/[\s\p{P}\p{S}]+$/gu, '');
+    
+    if (!cleaned) return;
+    if (!/[\u4e00-\u9fa5]/.test(cleaned)) return; // must contain Chinese characters
+    if (/[\u3040-\u309f\u30a0-\u30ff]/.test(cleaned)) return; // filter out Japanese Hiragana/Katakana
+    
+    // filter dates, page numbers, editions (e.g. "2023年", "1382年", "506頁", "第33代")
+    if (/^第?[\d\s\p{P}\p{S}]+[\u4e00-\u9fa5]{1,2}$/u.test(cleaned)) return;
+    
+    // filter very short or single character chunks (handled by words mode if important)
+    if (cleaned.length <= 1) return;
+    
+    chunksOut.push(cleaned);
+}
+
 function processText(text, hskFrom = 1, hskTo = 6, mode = 'words') {
     // modes: 'words', 'chunks', 'grammar'
     const tokens = segmentit.doSegment(text);
@@ -119,17 +136,17 @@ function processSentence(tokenObjs, uniqueWordsMap, chunksOut, sentencesOut, hsk
             
             if (CLAUSE_PUNCTUATION.has(t.w) || realWordCount >= 5) {
                 if (realWordCount > 0) {
-                    chunksOut.push(currentChunk.map(x => x.w).join(''));
+                    cleanAndPushChunk(currentChunk, chunksOut);
                 }
                 currentChunk = [];
                 realWordCount = 0;
             }
         }
         if (realWordCount > 0) {
-            chunksOut.push(currentChunk.map(x => x.w).join(''));
+            cleanAndPushChunk(currentChunk, chunksOut);
         }
     } else {
-        chunksOut.push(sentenceText);
+        cleanAndPushChunk(tokenObjs, chunksOut);
     }
     
     // Always store sentences for grammar matching
