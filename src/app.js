@@ -679,7 +679,7 @@ app.post('/api/user/delete', checkAuth, (req, res) => {
     }
 
     // Catch-all route to serve built index.html for React SPA Routing
-    app.get('*', (req, res) => {
+    app.get('(.*)', (req, res) => {
         res.sendFile(path.join(__dirname, '..', 'frontend', 'dist', 'index.html'));
     });
 
