@@ -18,6 +18,19 @@ const AIAgent = require('./ai_agent');
 const { NewsScraper } = require('./scraper');
 
 const app = express();
+app.disable('x-powered-by');
+
+// Security Headers Middleware
+app.use((req, res, next) => {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer-when-downgrade');
+    res.setHeader('Content-Security-Policy', "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data:; media-src 'self' https: blob: data:; connect-src 'self' https:;");
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+});
+
 const PORT = process.env.PORT || 3000;
 
 const db = new sqlite3.Database(path.join(__dirname, '..', 'users.db'));
