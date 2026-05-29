@@ -129,6 +129,7 @@ passport.deserializeUser((id, done) => {
     db.get('SELECT * FROM users WHERE id = ?', [id], (err, row) => done(err, row));
 });
 
+app.set('trust proxy', 1);
 app.use(cors());
 app.use('/media', express.static(path.join(dataDir, 'speech')));
 app.use(express.static('public'));
@@ -138,7 +139,12 @@ app.use(session({
     secret: process.env.SESSION_SECRET || 'supersecret',
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }
+    cookie: { 
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        secure: true,
+        httpOnly: true,
+        sameSite: 'lax'
+    }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
