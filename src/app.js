@@ -16,6 +16,7 @@ const crypto = require('crypto');
 
 const { processText } = require('./preprocessor');
 const AIAgent = require('./ai_agent');
+const aiAgent = new AIAgent();
 const { NewsScraper } = require('./scraper');
 
 const app = express();
@@ -179,6 +180,11 @@ app.use(cors({
 app.use('/media', express.static(path.join(dataDir, 'speech')));
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 app.use(express.json({ limit: '10mb' }));
+if (process.env.NODE_ENV === 'production' && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === 'supersecret')) {
+    console.error('CRITICAL ERROR: SESSION_SECRET is not configured or is set to insecure default in production mode!');
+    process.exit(1);
+}
+
 app.use(session({
     store: new SQLiteStore({ db: 'sessions.db', dir: path.join(__dirname, '..') }),
     secret: process.env.SESSION_SECRET || 'supersecret',
@@ -193,7 +199,6 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
-app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 
 app.get('/auth/google', (req, res, next) => {
     if (req.query.mode === 'register') {
@@ -207,19 +212,20 @@ app.get('/auth/google', (req, res, next) => {
 app.get('/auth/google/callback', (req, res, next) => {
     passport.authenticate('google', (err, user, info) => {
         if (err) return next(err);
+        const origin = req.protocol + '://' + req.get('host');
         if (!user) {
             const msg = info && info.message ? info.message : 'auth_failed';
-            return res.send(`<script nonce="${res.locals.nonce}">window.opener ? (window.opener.postMessage('auth_failed:' + '${msg}', '*'), window.close()) : window.location.href='/?error=${msg}';</script>`);
+            return res.send(`<script nonce="${res.locals.nonce}">window.opener ? (window.opener.postMessage('auth_failed:' + '${msg}', '${origin}'), window.close()) : window.location.href='/?error=${msg}';</script>`);
         }
         
         if (user.is_temp) {
             // Google auth passed, now show username modal
-            return res.send(`<script nonce="${res.locals.nonce}">window.opener ? (window.opener.postMessage('auth_temp_success', '*'), window.close()) : window.location.href='/?show_register_username=true';</script>`);
+            return res.send(`<script nonce="${res.locals.nonce}">window.opener ? (window.opener.postMessage('auth_temp_success', '${origin}'), window.close()) : window.location.href='/?show_register_username=true';</script>`);
         }
         
         req.logIn(user, (err) => {
             if (err) return next(err);
-            return res.send(`<script nonce="${res.locals.nonce}">window.opener ? (window.opener.postMessage('auth_success', '*'), window.close()) : window.location.href='/';</script>`);
+            return res.send(`<script nonce="${res.locals.nonce}">window.opener ? (window.opener.postMessage('auth_success', '${origin}'), window.close()) : window.location.href='/';</script>`);
         });
     })(req, res, next);
 });
@@ -503,9 +509,7 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
         // Run AI in background
         (async () => {
             try {
-                writeLog('ACTION', `Ініціалізація AI агента`, req.user.id, sessionId);
-                const agent = new AIAgent();
-                await agent.init();
+                writeLog('ACTION', `Використання глобального AI агента`, req.user.id, sessionId);
                 
                 const promptTemplate = fs.readFileSync(path.join(__dirname, '..', 'prompts', 'news_scraper.md'), 'utf8');
                 const p = promptTemplate.replace('HSK 1-6', `HSK ${hskFrom || 1}-${hskTo == 79 ? 'Будь-які' : hskTo || 6}`);
@@ -523,7 +527,7 @@ app.post('/api/ai-request', checkAuth, async (req, res) => {
                     const fullPrompt = `${p}\n\n=== DATA ===\n` + JSON.stringify(batch);
                     
                     try {
-                        const resultStr = await agent.callAI(fullPrompt);
+                        const resultStr = await aiAgent.callAI(fullPrompt);
                         const lines = resultStr.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('```'));
                         
                         for (const line of lines) {
@@ -610,7 +614,7 @@ app.get('/api/session-vocab/:sessionId', checkAuth, (req, res) => {
                 card.audioUrl = '';
                 
                 for (const p of pinyins) {
-                    const fileName = `${Buffer.from(card.hanzi + '_' + p).toString('base64').replace(/[^a-zA-Z0-9]/g, '')}.mp3`;
+                    const fileName = crypto.createHash('md5').update(card.hanzi + '_' + p).digest('hex') + '.mp3';
                     const filePath = path.join(dataDir, 'speech', dir, fileName);
                     if (fs.existsSync(filePath)) {
                         card.audioExists = true;
@@ -754,8 +758,10 @@ app.post('/api/user/delete', checkAuth, (req, res) => {
         const migrations = require('./migrations/migration_runner');
         await migrations.run();
         await loadSettings();
+        // Initialize global AIAgent singleton
+        await aiAgent.init();
     } catch (e) {
-        console.error('Failed to run database migrations:', e);
+        console.error('Failed to run database migrations/initialize AI Agent:', e);
         process.exit(1);
     }
 

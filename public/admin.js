@@ -1,3 +1,13 @@
+function escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function showToast(message) {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -37,12 +47,13 @@ function loadUsers() {
             users.forEach(u => {
                 const isBanned = u.banned_until && new Date(u.banned_until) > new Date();
                 const banText = isBanned ? `<span style="color:red;font-weight:bold;">Забанений до ${u.banned_until}</span>` : '<span style="color:green;">Активний</span>';
+                const escapedName = escapeHtml(u.display_name || 'Невідомо');
                 
                 html += `<tr>
                     <td>${u.id}</td>
                     <td>
                         <img src="${u.picture || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='}" class="user-pic" onerror="this.style.display='none'">
-                        <strong>${u.display_name || 'Невідомо'}</strong>
+                        <strong>${escapedName}</strong>
                         ${u.is_admin === 1 ? '<span style="background:var(--primary);color:white;font-size:0.7rem;padding:2px 6px;border-radius:10px;margin-left:5px;">ADMIN</span>' : ''}
                     </td>
                     <td>
@@ -63,7 +74,7 @@ function loadUsers() {
                             : `<button class="btn-small btn-role" title="Зробити адміном" onclick="setRole(${u.id}, true)">👑</button>`
                         }
                         ${u.id !== 1 
-                            ? `<button class="btn-small btn-ban" style="background:#9b2c2c;" title="Повністю видалити профіль користувача" onclick="deleteUser(${u.id}, '${(u.display_name || 'Невідомо').replace(/'/g, "\\'")}')">🗑️</button>`
+                            ? `<button class="btn-small btn-ban" style="background:#9b2c2c;" title="Повністю видалити профіль користувача" onclick="deleteUser(${u.id}, '${escapedName.replace(/'/g, "\\'")}')">🗑️</button>`
                             : ''
                         }
                     </td>

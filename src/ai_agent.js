@@ -1,7 +1,5 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 require('dotenv').config();
-const fetch = require('node-fetch'); // If Node < 18, but Playwright requires Node 16+ where fetch is standard. Assuming global fetch exists.
-
 class AIAgent {
     constructor(config) {
         this.config = {
@@ -20,8 +18,12 @@ class AIAgent {
     async init() {
         if (this.genAI) {
             try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${this.config.geminiKey}`;
-                const response = await fetch(url);
+                const url = `https://generativelanguage.googleapis.com/v1beta/models`;
+                const response = await fetch(url, {
+                    headers: {
+                        'x-goog-api-key': this.config.geminiKey
+                    }
+                });
                 const data = await response.json();
                 if (data.models) {
                     this.geminiQueue = data.models
