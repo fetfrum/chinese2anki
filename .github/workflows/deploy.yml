@@ -172,7 +172,7 @@ jobs:
       # E. Install node modules, run migrations, and restart Staging app
       - name: Build and Start Staging
         run: |
-          ssh -p 2202 fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki-staging && npm install --omit=dev && npm rebuild sqlite3 --build-from-source && npx playwright install chromium && node src/migrations/migration_runner.js && pm2 restart chinese2anki-staging"
+          ssh -p 2202 fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki-staging && npm install --omit=dev && npm rebuild sqlite3 --build-from-source && npx playwright install chromium && node src/migrations/migration_runner.js && (pm2 restart chinese2anki-staging || pm2 start src/app.js --name chinese2anki-staging)"
 
   # 2. Deploy Production job (Awaits manual approval in GitHub UI via Environment)
   deploy-production:
