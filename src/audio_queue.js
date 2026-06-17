@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { EdgeTTS } = require('node-edge-tts');
-const fetch = require('node-fetch'); // assuming fetch is globally available in Node 18+
+const crypto = require('crypto');
 
 const AZURE_KEY = (process.env.AZURE_SPEECH_KEY || '').trim();
 const AZURE_REGION = (process.env.AZURE_SPEECH_REGION || 'eastus').trim();
@@ -95,7 +95,7 @@ class AudioQueue {
 
     async synthesizeTask(task) {
         const { hanzi, pinyin, type } = task;
-        const fileName = `${Buffer.from(hanzi + '_' + pinyin).toString('base64').replace(/[^a-zA-Z0-9]/g, '')}.mp3`;
+        const fileName = crypto.createHash('md5').update(hanzi + '_' + pinyin).digest('hex') + '.mp3';
         const filePath = path.join(this.speechDir, type, fileName);
         
         if (fs.existsSync(filePath)) return; // Already exists

@@ -4,17 +4,111 @@ on:
   push:
     branches:
       - main
+      - 'frontend/*'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # 1. Deploy Staging job
-  deploy-staging:
+  # 0. Deploy Testing job (Runs on push to frontend/* branches)
+  deploy-testing:
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/frontend/')
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Frontend
+        run: |
+          npm install
+          npm run build
+
+      - name: Start SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add Host Key to Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p 2202 -H 95.216.15.173 >> ~/.ssh/known_hosts
+
+      - name: Deploy to Testing via Rsync
+        run: |
+          # A. Back up production database on server (safety backup)
+          ssh -p 2202 fetfrum@95.216.15.173 "cp /home/fetfrum/Chinese2Anki/users.db /home/fetfrum/Chinese2Anki/users.db.testing_bak_\$(date +%F_%H%M%S) || true"
+
+          # B. Copy Production DB to Testing directory for realistic testing
+          ssh -p 2202 fetfrum@95.216.15.173 "mkdir -p /home/fetfrum/Chinese2Anki-testing && cp /home/fetfrum/Chinese2Anki/users.db /home/fetfrum/Chinese2Anki-testing/users.db || true"
+
+          # C. Sync source code to Testing directory
+          rsync -ravz -e "ssh -p 2202" --exclude 'node_modules' --exclude '.git' --exclude '.github' --exclude 'users.db' --exclude 'sessions.db' --exclude '.env' ./ fetfrum@95.216.15.173:/home/fetfrum/Chinese2Anki-testing/
+
+      # D. Generate Testing .env dynamically on port 3002
+      - name: Generate Testing .env
+        env:
+          AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
+          AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ADMIN_USER: ${{ secrets.ADMIN_USER }}
+          ADMIN_PASS_HASH: ${{ secrets.ADMIN_PASS_HASH }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          ssh -p 2202 fetfrum@95.216.15.173 "cat << 'EOF' > /home/fetfrum/Chinese2Anki-testing/.env
+          TTS_ENGINE=local
+          AZURE_SPEECH_KEY=$AZURE_SPEECH_KEY
+          AZURE_SPEECH_REGION=$AZURE_SPEECH_REGION
+          AZURE_SPEECH_RATE=-15%
+          AZURE_SPEECH_PITCH=+5%
+          AZURE_SPEECH_STYLE=assistant
+          GEMINI_API_KEY=$GEMINI_API_KEY
+          GEMINI_MODEL=gemini-2.0-flash
+          OPENROUTER_API_KEY=$OPENROUTER_API_KEY
+          USE_ANTIGRAVITY=true
+          DEFAULT_TOKENS=30
+          COST_PER_ATTEMPT=10
+          ADMIN_USER=$ADMIN_USER
+          ADMIN_PASS_HASH=$ADMIN_PASS_HASH
+          SESSION_SECRET=$SESSION_SECRET
+          GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
+          GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
+          DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY
+          PORT=3002
+          NODE_ENV=testing
+          USE_HTTPS=false
+          EOF"
+
+      # E. Install node modules, download chromium, run migrations, and restart Testing app
+      - name: Build and Start Testing
+        run: |
+          ssh -p 2202 fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki-testing && npm install --omit=dev && npm rebuild sqlite3 --build-from-source && npx playwright install chromium && node src/migrations/migration_runner.js && pm2 restart chinese2anki-testing || pm2 start src/app.js --name chinese2anki-testing"
+
+  # 1. Deploy Staging job
+  deploy-staging:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Frontend
+        run: |
+          npm install
+          npm run build
 
       - name: Start SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -78,7 +172,7 @@ jobs:
       # E. Install node modules, run migrations, and restart Staging app
       - name: Build and Start Staging
         run: |
-          ssh -p 2202 fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki-staging && npm install --omit=dev && node src/migrations/migration_runner.js && pm2 restart chinese2anki-staging"
+          ssh -p 2202 fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki-staging && npm install --omit=dev && npm rebuild sqlite3 --build-from-source && npx playwright install chromium && node src/migrations/migration_runner.js && pm2 restart chinese2anki-staging"
 
   # 2. Deploy Production job (Awaits manual approval in GitHub UI via Environment)
   deploy-production:
@@ -90,6 +184,16 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Frontend
+        run: |
+          npm install
+          npm run build
 
       - name: Start SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -150,4 +254,4 @@ jobs:
       # D. Install node modules, run migrations, and restart Production app
       - name: Build and Start Production
         run: |
-          ssh -p 2202 fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki && npm install --omit=dev && node src/migrations/migration_runner.js && pm2 restart chinese2anki --update-env"
+          ssh -p 2202 fetfrum@95.216.15.173 "cd /home/fetfrum/Chinese2Anki && npm install --omit=dev && npm rebuild sqlite3 --build-from-source && npx playwright install chromium && node src/migrations/migration_runner.js && pm2 restart chinese2anki --update-env"

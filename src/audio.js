@@ -1,6 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const LOG_FILE = path.join(__dirname, 'txt', 'tts-news.log');
 const originalLog = console.log;
@@ -195,7 +196,7 @@ async function run() {
         let audioFiles = [];
 
         for (const variant of pinyinVariants) {
-            const fileName = `${Buffer.from(hanzi + '_' + variant).toString('base64').replace(/[^a-zA-Z0-9]/g, '')}.mp3`;
+            const fileName = crypto.createHash('md5').update(hanzi + '_' + variant).digest('hex') + '.mp3';
             const filePath = path.join(SPEECH_DIR, fileName);
 
             let finalFileName = fileName;

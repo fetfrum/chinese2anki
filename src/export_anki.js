@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { default: ApkgExport } = require('./anki-export/index.js'); // Use local fork
 
 const MODEL_CSS = `
@@ -246,7 +247,7 @@ async function createDeck(jsonPath, audioDir, outPath) {
         const audioFilenames = [];
         
         for (const p of pinyins) {
-            const fileName = `${Buffer.from(card.hanzi + '_' + p).toString('base64').replace(/[^a-zA-Z0-9]/g, '')}.mp3`;
+            const fileName = crypto.createHash('md5').update(card.hanzi + '_' + p).digest('hex') + '.mp3';
             const filePath = path.join(audioDir, dir, fileName);
             if (fs.existsSync(filePath)) {
                 const buf = fs.readFileSync(filePath);
