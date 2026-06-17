@@ -271,24 +271,30 @@ app.post('/api/register', (req, res, next) => {
             [googleId, cleanUsername, picture, systemSettings.max_tokens, today], function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 
-                const newUser = {
+                 const newUser = {
                     id: this.lastID,
                     google_id: googleId,
                     display_name: cleanUsername,
                     picture: picture,
                     tokens_remaining: 300,
-                    last_reset_date: today
+                    last_reset_date: today,
+                    is_admin: this.lastID === 1 ? 1 : 0
                 };
 
-                // Clear temp session
-                req.session.reg_flow = false;
-                req.session.temp_google_profile = null;
+                const setupRoleQuery = this.lastID === 1 ? 'UPDATE users SET is_admin = 1 WHERE id = 1' : 'SELECT 1';
+                db.run(setupRoleQuery, (err) => {
+                    if (err) console.error('Failed to set admin role for first user:', err);
+                    
+                    // Clear temp session
+                    req.session.reg_flow = false;
+                    req.session.temp_google_profile = null;
 
-                // Log in the registered user manually
-                req.logIn(newUser, (err) => {
-                    if (err) return res.status(500).json({ error: err.message });
-                    writeLog('ACTION', 'User registered and logged in', newUser.id);
-                    res.json({ success: true, user: newUser });
+                    // Log in the registered user manually
+                    req.logIn(newUser, (err) => {
+                        if (err) return res.status(500).json({ error: err.message });
+                        writeLog('ACTION', 'User registered and logged in', newUser.id);
+                        res.json({ success: true, user: newUser });
+                    });
                 });
             }
         );
@@ -760,6 +766,11 @@ app.post('/api/user/delete', checkAuth, (req, res) => {
         await loadSettings();
         // Initialize global AIAgent singleton
         await aiAgent.init();
+        
+        // Ensure the very first user (id = 1) is automatically an admin
+        db.run('UPDATE users SET is_admin = 1 WHERE id = 1', (err) => {
+            if (err) console.error('Failed to run retroactive admin promotion query:', err);
+        });
     } catch (e) {
         console.error('Failed to run database migrations/initialize AI Agent:', e);
         process.exit(1);
