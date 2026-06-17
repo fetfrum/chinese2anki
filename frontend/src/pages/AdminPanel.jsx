@@ -7,6 +7,9 @@ export function AdminPanel() {
   const showToast = useToastStore((state) => state.showToast);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [maxTokens, setMaxTokens] = useState(300);
+  const [regenPerDay, setRegenPerDay] = useState(10);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const loadUsers = () => {
     setLoading(true);
@@ -25,24 +28,45 @@ export function AdminPanel() {
       });
   };
 
+  const loadSettings = () => {
+    fetch('/api/admin/settings')
+      .then((r) => {
+        if (!r.ok) throw new Error('Failed to fetch settings');
+        return r.json();
+      })
+      .then((data) => {
+        setMaxTokens(data.max_tokens);
+        setRegenPerDay(data.regen_per_day);
+      })
+      .catch((e) => {
+        showToast('Помилка завантаження глобальних налаштувань');
+      });
+  };
+
   useEffect(() => {
     loadUsers();
+    loadSettings();
   }, []);
 
-  const handleUpdateTokens = (userId, tokens) => {
+  const handleUpdateTokens = (userId, tokens, regenRate) => {
     if (isNaN(tokens)) {
       showToast('Введіть коректне число');
+      return;
+    }
+    const rateVal = regenRate === '' || regenRate === null || regenRate === undefined ? null : parseInt(regenRate);
+    if (rateVal !== null && (isNaN(rateVal) || rateVal < 0)) {
+      showToast('Введіть коректне число швидкості відновлення');
       return;
     }
     fetch(`/api/admin/users/${userId}/tokens`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tokens })
+      body: JSON.stringify({ tokens, regen_rate: rateVal })
     })
       .then((r) => r.json())
       .then((data) => {
         if (data.success) {
-          showToast('Токени збережено!');
+          showToast('Дані користувача збережено!');
           loadUsers();
         } else {
           showToast('Помилка: ' + data.error);
@@ -84,9 +108,91 @@ export function AdminPanel() {
       });
   };
 
+  const handleDeleteUser = (userId, displayName) => {
+    if (userId === 1) {
+      showToast('Не можна видалити головного адміністратора');
+      return;
+    }
+    if (!confirm(`Ви впевнені, що хочете ПОВНІСТЮ видалити профіль користувача "${displayName}"? Цю дію не можна скасувати!`)) {
+      return;
+    }
+    fetch(`/api/admin/users/${userId}/delete`, {
+      method: 'POST'
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) {
+          showToast('Користувача повністю видалено!');
+          loadUsers();
+        } else {
+          showToast('Помилка: ' + data.error);
+        }
+      })
+      .catch(() => {
+        showToast('Помилка запиту видалення');
+      });
+  };
+
+  const handleSaveSettings = (e) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    fetch('/api/admin/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ max_tokens: maxTokens, regen_per_day: regenPerDay })
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        setSavingSettings(false);
+        if (data.success) {
+          showToast('Налаштування успішно збережено!');
+        } else {
+          showToast('Помилка збереження: ' + data.error);
+        }
+      })
+      .catch(() => {
+        setSavingSettings(false);
+        showToast('Помилка запиту збереження');
+      });
+  };
+
   return (
     <div className="main-wrapper" style={{ overflowY: 'auto', display: 'block', padding: '40px 20px' }}>
       <div style={{ width: '90%', maxWidth: '1400px', margin: '0 auto' }}>
+        <h2 style={{ marginBottom: '24px', color: 'var(--primary)' }}>Глобальні налаштування токенів</h2>
+        <div className="main-card" style={{ padding: '30px', marginBottom: '30px', flexDirection: 'column', height: 'auto' }}>
+          <form onSubmit={handleSaveSettings} style={{ display: 'flex', gap: '20px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="input-group" style={{ margin: 0, minWidth: '240px', flex: 1 }}>
+              <label htmlFor="max-tokens-input" style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>Ліміт токенів користувача (Максимум / Старт)</label>
+              <input 
+                type="number" 
+                id="max-tokens-input" 
+                value={maxTokens} 
+                onChange={(e) => setMaxTokens(parseInt(e.target.value) || 0)}
+                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.95rem' }}
+              />
+            </div>
+            <div className="input-group" style={{ margin: 0, minWidth: '240px', flex: 1 }}>
+              <label htmlFor="regen-per-day-input" style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>Швидкість відновлення токенів (у добу)</label>
+              <input 
+                type="number" 
+                id="regen-per-day-input" 
+                value={regenPerDay} 
+                onChange={(e) => setRegenPerDay(parseInt(e.target.value) || 0)}
+                style={{ width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.95rem' }}
+              />
+            </div>
+            <button 
+              type="submit" 
+              className="btn-primary" 
+              disabled={savingSettings}
+              style={{ padding: '12px 24px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.95rem', borderRadius: '6px' }}
+            >
+              {savingSettings ? 'Збереження...' : 'Зберегти ліміти'}
+            </button>
+          </form>
+        </div>
+
         <h2 style={{ marginBottom: '24px', color: 'var(--primary)' }}>Управління користувачами</h2>
         
         <div className="main-card" style={{ padding: '30px', flexDirection: 'column', height: 'auto' }}>
@@ -102,6 +208,7 @@ export function AdminPanel() {
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border-color)', fontWeight: 600, color: 'var(--text-muted)' }}>ID</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border-color)', fontWeight: 600, color: 'var(--text-muted)' }}>Користувач</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border-color)', fontWeight: 600, color: 'var(--text-muted)' }}>Токени</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border-color)', fontWeight: 600, color: 'var(--text-muted)' }}>Відновлення (день)</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border-color)', fontWeight: 600, color: 'var(--text-muted)' }}>Статус / Бан</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border-color)', fontWeight: 600, color: 'var(--text-muted)' }}>Дії</th>
                 </tr>
@@ -135,6 +242,15 @@ export function AdminPanel() {
                         />
                       </td>
                       <td style={{ padding: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                        <input 
+                          type="number" 
+                          defaultValue={u.regen_rate !== null ? u.regen_rate : ''} 
+                          id={`regen-${u.id}`}
+                          placeholder={`системне (${regenPerDay})`}
+                          style={{ width: '130px', padding: '6px', border: '1px solid var(--border-color)', borderRadius: '4px', textAlign: 'center' }}
+                        />
+                      </td>
+                      <td style={{ padding: '12px', borderBottom: '1px solid var(--border-color)' }}>
                         {isBanned ? (
                           <span style={{ color: 'red', fontWeight: 'bold' }}>Забанений до {u.banned_until}</span>
                         ) : (
@@ -144,47 +260,66 @@ export function AdminPanel() {
                       <td style={{ padding: '12px', borderBottom: '1px solid var(--border-color)' }}>
                         <button 
                           className="btn-primary" 
-                          style={{ padding: '6px 12px', fontSize: '0.85rem', borderRadius: '4px', marginRight: '5px' }}
-                          onClick={() => handleUpdateTokens(u.id, parseInt(document.getElementById(`tokens-${u.id}`).value))}
+                          title="Зберегти токени та ліміт відновлення"
+                          style={{ padding: '8px 12px', fontSize: '1.05rem', borderRadius: '4px', marginRight: '5px', background: '#00796b' }}
+                          onClick={() => handleUpdateTokens(
+                            u.id, 
+                            parseInt(document.getElementById(`tokens-${u.id}`).value),
+                            document.getElementById(`regen-${u.id}`).value
+                          )}
                         >
-                          Зберегти токени
+                          💾
                         </button>
                         {isBanned ? (
                           <button 
                             className="btn-primary" 
-                            style={{ padding: '6px 12px', fontSize: '0.85rem', borderRadius: '4px', marginRight: '5px', background: '#48bb78' }}
+                            title="Розбанити користувача"
+                            style={{ padding: '8px 12px', fontSize: '1.05rem', borderRadius: '4px', marginRight: '5px', background: '#48bb78' }}
                             onClick={() => handleSetBan(u.id, null)}
                           >
-                            Розбанити
+                            🔓
                           </button>
                         ) : (
                           <button 
                             className="btn-primary" 
-                            style={{ padding: '6px 12px', fontSize: '0.85rem', borderRadius: '4px', marginRight: '5px', background: '#e53e3e' }}
+                            title="Забанити користувача"
+                            style={{ padding: '8px 12px', fontSize: '1.05rem', borderRadius: '4px', marginRight: '5px', background: '#e53e3e' }}
                             onClick={() => handleSetBan(u.id, '2099-12-31')}
                           >
-                            Забанити
+                            🚫
                           </button>
                         )}
                         {u.is_admin === 1 ? (
                           u.id === 1 ? (
-                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginLeft: '5px' }}>Головний адмін</span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginLeft: '5px' }} title="Головний адміністратор">👑</span>
                           ) : (
                             <button 
                               className="btn-primary" 
-                              style={{ padding: '6px 12px', fontSize: '0.85rem', borderRadius: '4px', background: '#4a5568' }}
+                              title="Забрати права адміністратора"
+                              style={{ padding: '8px 12px', fontSize: '1.05rem', borderRadius: '4px', marginRight: '5px', background: '#718096' }}
                               onClick={() => handleSetRole(u.id, false)}
                             >
-                              Забрати права адміна
+                              👤
                             </button>
                           )
                         ) : (
                           <button 
                             className="btn-primary" 
-                            style={{ padding: '6px 12px', fontSize: '0.85rem', borderRadius: '4px', background: '#4a5568' }}
+                            title="Зробити адміністратором"
+                            style={{ padding: '8px 12px', fontSize: '1.05rem', borderRadius: '4px', marginRight: '5px', background: '#4a5568' }}
                             onClick={() => handleSetRole(u.id, true)}
                           >
-                            Зробити адміном
+                            👑
+                          </button>
+                        )}
+                        {u.id !== 1 && (
+                          <button 
+                            className="btn-primary" 
+                            title="Повністю видалити профіль користувача"
+                            style={{ padding: '8px 12px', fontSize: '1.05rem', borderRadius: '4px', background: '#9b2c2c' }}
+                            onClick={() => handleDeleteUser(u.id, u.display_name)}
+                          >
+                            🗑️
                           </button>
                         )}
                       </td>

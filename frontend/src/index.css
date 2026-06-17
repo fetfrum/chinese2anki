@@ -99,7 +99,7 @@ body {
 
 .btn-primary {
     background: var(--primary);
-    color: white !important;
+    color: white;
     padding: 10px 24px;
     border-radius: var(--radius-pill);
     text-decoration: none;
@@ -111,6 +111,10 @@ body {
     align-items: center;
     justify-content: center;
     font-size: 1rem;
+}
+
+a.btn-primary, button.btn-primary {
+    color: white;
 }
 
 .btn-primary:hover {

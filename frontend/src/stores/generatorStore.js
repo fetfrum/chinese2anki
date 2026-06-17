@@ -242,8 +242,9 @@ export const useGeneratorStore = create(
           const res = await fetch(`/api/session-vocab/${sessionId}`);
           if (!res.ok) throw new Error('Failed to load vocabulary');
           const data = await res.json();
-          set({ cardsList: data.cards || [] });
+          set({ cardsList: data.cards || [], isProcessing: false });
         } catch (e) {
+          set({ isProcessing: false });
           alert('Помилка завантаження попереднього перегляду: ' + e.message);
           get().startExport(); // fallback
         }

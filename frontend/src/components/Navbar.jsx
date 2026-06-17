@@ -55,13 +55,22 @@ export function Navbar({ onNavigate, currentPage }) {
             {isAuthenticated ? (
               <>
                 {user?.is_admin === 1 && (
-                  <a 
-                    href="#" 
-                    onClick={() => onNavigate(currentPage === 'admin-logs' ? 'admin' : 'admin-logs')}
-                    style={{ color: 'var(--primary)', fontWeight: 600 }}
-                  >
-                    {currentPage === 'admin-logs' ? 'Користувачі' : 'Адмін-панель'}
-                  </a>
+                  <>
+                    <a 
+                      href="#" 
+                      onClick={() => onNavigate('admin')}
+                      style={{ color: currentPage === 'admin' ? 'var(--primary)' : 'inherit', fontWeight: 600 }}
+                    >
+                      Користувачі
+                    </a>
+                    <a 
+                      href="#" 
+                      onClick={() => onNavigate('admin-logs')}
+                      style={{ color: currentPage === 'admin-logs' ? 'var(--primary)' : 'inherit', fontWeight: 600 }}
+                    >
+                      Логи
+                    </a>
+                  </>
                 )}
                 <a 
                   href="#" 

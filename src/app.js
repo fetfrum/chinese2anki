@@ -12,6 +12,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const { v4: uuidv4 } = require('uuid');
 const JSON5 = require('json5');
+const crypto = require('crypto');
 
 const { processText } = require('./preprocessor');
 const AIAgent = require('./ai_agent');
@@ -22,12 +23,15 @@ app.disable('x-powered-by');
 
 // Security Headers Middleware
 app.use((req, res, next) => {
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.locals.nonce = nonce;
+    
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer-when-downgrade');
-    // Hardened CSP: restricted default-src to 'self' and completely removed unsafe-inline/unsafe-eval from script-src
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' https: data:; media-src 'self' https: blob: data:; connect-src 'self' https:;");
+    // Hardened CSP: added dynamic nonce to allow legitimate inline redirection script
+    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self' https: 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' https:; img-src 'self' https: data:; media-src 'self' https: blob: data:; connect-src 'self' https:;`);
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
 });
@@ -39,9 +43,25 @@ const dataDir = path.join(__dirname, '..', 'data');
 const sessionsDir = path.join(dataDir, 'sessions');
 if (!fs.existsSync(sessionsDir)) fs.mkdirSync(sessionsDir, { recursive: true });
 
-// Configs
-const MAX_CARDS = 300;
-const REGEN_PER_DAY = 10;
+// Configs (default fallback values, loaded from database settings table)
+const systemSettings = {
+    max_tokens: 300,
+    regen_per_day: 10
+};
+
+function loadSettings() {
+    return new Promise((resolve) => {
+        db.all('SELECT key, value FROM settings', (err, rows) => {
+            if (!err && rows) {
+                rows.forEach(row => {
+                    systemSettings[row.key] = parseInt(row.value) || systemSettings[row.key];
+                });
+                console.log('[Settings] Loaded from DB:', systemSettings);
+            }
+            resolve();
+        });
+    });
+}
 
 function safeJSONParse(str) {
     try {
@@ -120,8 +140,9 @@ passport.use(new GoogleStrategy({
                   const diffDays = Math.floor((now - last) / (1000 * 60 * 60 * 24));
                   
                   if (diffDays > 0) {
-                      let newTokens = row.tokens_remaining + (diffDays * REGEN_PER_DAY);
-                      if (newTokens > MAX_CARDS) newTokens = MAX_CARDS;
+                      const rate = row.regen_rate !== null && row.regen_rate !== undefined ? row.regen_rate : systemSettings.regen_per_day;
+                      let newTokens = row.tokens_remaining + (diffDays * rate);
+                      if (newTokens > systemSettings.max_tokens) newTokens = systemSettings.max_tokens;
                       db.run('UPDATE users SET tokens_remaining = ?, last_reset_date = ? WHERE id = ?', [newTokens, today, row.id]);
                       row.tokens_remaining = newTokens;
                   }
@@ -165,7 +186,7 @@ app.use(session({
     saveUninitialized: false,
     cookie: { 
         maxAge: 30 * 24 * 60 * 60 * 1000,
-        secure: true,
+        secure: process.env.USE_HTTPS !== 'false',
         httpOnly: true,
         sameSite: 'lax'
     }
@@ -188,17 +209,17 @@ app.get('/auth/google/callback', (req, res, next) => {
         if (err) return next(err);
         if (!user) {
             const msg = info && info.message ? info.message : 'auth_failed';
-            return res.send(`<script>window.opener ? (window.opener.postMessage('auth_failed:' + '${msg}', '*'), window.close()) : window.location.href='/?error=${msg}';</script>`);
+            return res.send(`<script nonce="${res.locals.nonce}">window.opener ? (window.opener.postMessage('auth_failed:' + '${msg}', '*'), window.close()) : window.location.href='/?error=${msg}';</script>`);
         }
         
         if (user.is_temp) {
             // Google auth passed, now show username modal
-            return res.send(`<script>window.opener ? (window.opener.postMessage('auth_temp_success', '*'), window.close()) : window.location.href='/?show_register_username=true';</script>`);
+            return res.send(`<script nonce="${res.locals.nonce}">window.opener ? (window.opener.postMessage('auth_temp_success', '*'), window.close()) : window.location.href='/?show_register_username=true';</script>`);
         }
         
         req.logIn(user, (err) => {
             if (err) return next(err);
-            return res.send(`<script>window.opener ? (window.opener.postMessage('auth_success', '*'), window.close()) : window.location.href='/';</script>`);
+            return res.send(`<script nonce="${res.locals.nonce}">window.opener ? (window.opener.postMessage('auth_success', '*'), window.close()) : window.location.href='/';</script>`);
         });
     })(req, res, next);
 });
@@ -239,9 +260,9 @@ app.post('/api/register', (req, res, next) => {
             picture = req.session.temp_google_profile.pic || '';
         }
 
-        // Insert new user with 300 start tokens
+        // Insert new user with max_tokens start tokens
         db.run('INSERT INTO users (google_id, display_name, picture, tokens_remaining, last_reset_date) VALUES (?, ?, ?, ?, ?)',
-            [googleId, cleanUsername, picture, 300, today], function(err) {
+            [googleId, cleanUsername, picture, systemSettings.max_tokens, today], function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 
                 const newUser = {
@@ -282,20 +303,25 @@ function checkAdmin(req, res, next) {
 
 // Admin Routes
 app.get('/api/admin/users', checkAdmin, (req, res) => {
-    db.all('SELECT id, google_id, display_name, picture, tokens_remaining, last_reset_date, banned_until, is_admin FROM users', (err, rows) => {
+    db.all('SELECT id, google_id, display_name, picture, tokens_remaining, last_reset_date, banned_until, is_admin, regen_rate FROM users', (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
 });
 
 app.post('/api/admin/users/:id/tokens', checkAdmin, (req, res) => {
-    const { tokens } = req.body;
+    const { tokens, regen_rate } = req.body;
     const userId = req.params.id;
     if (typeof tokens !== 'number') return res.status(400).json({ error: 'Invalid tokens' });
     
-    db.run('UPDATE users SET tokens_remaining = ? WHERE id = ?', [tokens, userId], function(err) {
+    const rateVal = regen_rate === '' || regen_rate === null || regen_rate === undefined ? null : parseInt(regen_rate);
+    if (rateVal !== null && (isNaN(rateVal) || rateVal < 0)) {
+        return res.status(400).json({ error: 'Invalid regen rate' });
+    }
+    
+    db.run('UPDATE users SET tokens_remaining = ?, regen_rate = ? WHERE id = ?', [tokens, rateVal, userId], function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        writeLog('ACTION', `Admin updated tokens for user ${userId} to ${tokens}`, req.user.id);
+        writeLog('ACTION', `Admin updated tokens to ${tokens} and regen rate to ${rateVal !== null ? rateVal : 'default'} for user ${userId}`, req.user.id);
         res.json({ success: true });
     });
 });
@@ -323,6 +349,22 @@ app.post('/api/admin/users/:id/role', checkAdmin, (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         writeLog('ACTION', `Changed admin role of user ${userId} to ${is_admin}`, req.user.id);
         res.json({ success: true });
+    });
+});
+
+app.post('/api/admin/users/:id/delete', checkAdmin, (req, res) => {
+    const userId = req.params.id;
+    if (userId === '1') {
+        return res.status(403).json({ error: 'Не можна видалити головного адміністратора' });
+    }
+    db.serialize(() => {
+        db.run('DELETE FROM generations WHERE user_id = ?', [userId]);
+        db.run('DELETE FROM logs WHERE user_id = ?', [userId]);
+        db.run('DELETE FROM users WHERE id = ?', [userId], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            writeLog('ACTION', `Адміністратор повністю видалив користувача ${userId}`, req.user.id);
+            res.json({ success: true });
+        });
     });
 });
 
@@ -367,6 +409,37 @@ app.get('/api/admin/logs', checkAdmin, (req, res) => {
                 page: parseInt(page),
                 totalPages: Math.ceil(row.count / limit)
             });
+        });
+    });
+});
+
+app.get('/api/admin/settings', checkAdmin, (req, res) => {
+    res.json(systemSettings);
+});
+
+app.post('/api/admin/settings', checkAdmin, (req, res) => {
+    const { max_tokens, regen_per_day } = req.body;
+    if (max_tokens === undefined || regen_per_day === undefined) {
+        return res.status(400).json({ error: 'Missing setting values' });
+    }
+
+    const maxVal = parseInt(max_tokens);
+    const regenVal = parseInt(regen_per_day);
+
+    if (isNaN(maxVal) || isNaN(regenVal) || maxVal < 0 || regenVal < 0) {
+        return res.status(400).json({ error: 'Invalid setting values' });
+    }
+
+    db.serialize(() => {
+        db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['max_tokens', String(maxVal)]);
+        db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['regen_per_day', String(regenVal)], (err) => {
+            if (err) {
+                return res.status(500).json({ error: 'Failed to update database settings' });
+            }
+            systemSettings.max_tokens = maxVal;
+            systemSettings.regen_per_day = regenVal;
+            writeLog('ACTION', `Адміністратор змінив ліміт токенів на ${maxVal}, швидкість відновлення на ${regenVal}/добу`, req.user.id);
+            res.json({ success: true, settings: systemSettings });
         });
     });
 });
@@ -604,6 +677,9 @@ app.post('/api/export-apkg', checkAuth, async (req, res) => {
         
         // TTS complete, generate APKG
         const outPath = path.join(sessionPath, 'deck.apkg');
+        if (fs.existsSync(outPath)) {
+            return res.json({ status: 'ready', downloadUrl: `/api/download/${sessionId}` });
+        }
         await createDeck(jsonPath, audioQueue.speechDir, outPath);
         
         res.json({ status: 'ready', downloadUrl: `/api/download/${sessionId}` });
@@ -630,8 +706,12 @@ app.get('/api/download/:sessionId', checkAuth, (req, res) => {
         
         res.download(apkFile, filename, (err) => {
             if (!err) {
-                // Cleanup session after download
-                fs.rmSync(sessionPath, { recursive: true, force: true });
+                // Cleanup session after 60 seconds to allow parallel downloads/retries to finish
+                setTimeout(() => {
+                    if (fs.existsSync(sessionPath)) {
+                        fs.rmSync(sessionPath, { recursive: true, force: true });
+                    }
+                }, 60000);
             }
         });
     } else {
@@ -673,13 +753,14 @@ app.post('/api/user/delete', checkAuth, (req, res) => {
     try {
         const migrations = require('./migrations/migration_runner');
         await migrations.run();
+        await loadSettings();
     } catch (e) {
         console.error('Failed to run database migrations:', e);
         process.exit(1);
     }
 
     // Catch-all route to serve built index.html for React SPA Routing
-    app.get('/:splat*', (req, res) => {
+    app.get('/{*path}', (req, res) => {
         res.sendFile(path.join(__dirname, '..', 'frontend', 'dist', 'index.html'));
     });
 
